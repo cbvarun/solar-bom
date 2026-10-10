@@ -1,0 +1,17 @@
+export const GLOSSARY = {
+  kwp: { term: "kWp (kilowatt-peak)", definition: "DC power rating of the PV array at Standard Test Conditions (1000 W/m², 25 °C cell temperature)." },
+  voc: { term: "Voc (open-circuit voltage)", definition: "Module voltage with no load. It rises in cold weather, so string Voc is checked at the design minimum temperature against the inverter's maximum DC voltage." },
+  isc: { term: "Isc (short-circuit current)", definition: "Module current when its terminals are shorted. Used for DC cable and protection design current." },
+  vmp: { term: "Vmp (voltage at maximum power)", definition: "Operating voltage at maximum power. The string Vmp must stay within the inverter's MPPT window across design temperatures." },
+  mppt: { term: "MPPT", definition: "Maximum Power Point Tracker — an inverter input that tracks the array's best operating point. Each MPPT accepts one or more parallel strings within voltage and current limits." },
+  dcac: { term: "DC/AC ratio", definition: "Installed DC array capacity divided by the inverter's rated AC output. Limits are configurable engineering rules." },
+  string: { term: "String", definition: "Modules connected in series. String length is limited by voltage at low temperature (upper bound) and MPPT voltage at high temperature (lower bound)." },
+  spd: { term: "SPD (surge protection device)", definition: "Diverts transient over-voltages to earth. Not duplicated where the inverter already integrates the function." },
+  almm: { term: "ALMM", definition: "MNRE's Approved List of Models and Manufacturers. Applicability depends on the project category and the order in force on the relevant date." },
+  netmetering: { term: "Net metering", definition: "Export arrangement where a bi-directional meter records import and export. Eligibility and rules are set by KERC/BESCOM and change over time." },
+  sanctioned: { term: "Sanctioned load", definition: "The connected load approved by BESCOM for the premises, shown on the electricity bill in kW or kVA." },
+  vdrop: { term: "Voltage drop", definition: "Voltage lost along a cable due to its resistance. Preliminary sizing keeps it within a configurable limit." },
+  derating: { term: "Derating factor", definition: "Reduction in a cable's current capacity for ambient temperature, grouping and installation method, taken from the cable manufacturer's tables." },
+  specificYield: { term: "Specific yield", definition: "Expected annual energy per kWp (kWh/kWp/yr) for a specific site, orientation and shading. Must come from a cited site simulation; never assumed." },
+  gst: { term: "GST classification", definition: "Tax class and rate configured by finance from the current GST notification for the applicable HSN/SAC code." },
+} as const;
