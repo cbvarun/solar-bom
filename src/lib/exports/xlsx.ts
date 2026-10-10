@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { QUANTITY_STATUS_LABEL, VERIFICATION_LABEL, PROVENANCE_LABEL, AVAILABILITY_LABEL } from "@/lib/format";
-import { STANDARD_EXCLUSIONS, STANDARD_TERMS, type ExportData } from "./data";
+import { sectionLabel } from "@/lib/engine";
+import { STANDARD_EXCLUSIONS, STANDARD_TERMS, type ExportPayload } from "./payload";
 
 const GREEN = "FF163527";
 const LIGHT = "FFF0F7F3";
@@ -25,11 +26,11 @@ function title(ws: ExcelJS.Worksheet, text: string, sub: string) {
  * Real, editable XLSX. The BOM sheet uses live formulas so procurement can
  * change quantities, prices or GST rates in Excel and totals recalculate.
  */
-export async function bomXlsx(d: ExportData): Promise<Buffer> {
+export async function bomXlsx(d: ExportPayload): Promise<Uint8Array> {
   const wb = new ExcelJS.Workbook();
   wb.creator = d.company.name;
-  wb.created = d.generatedAt;
-  const sub = `${d.project.reference} · ${d.project.name} · BOM revision ${d.bom.currentRevision} · generated ${d.generatedAt.toISOString().slice(0, 10)} · PRELIMINARY — subject to engineering verification`;
+  wb.created = new Date(d.generatedAt);
+  const sub = `${d.project.reference} · ${d.project.name} · BOM revision ${d.bom.currentRevision} · generated ${d.generatedAt.slice(0, 10)} · PRELIMINARY — subject to engineering verification`;
 
   const sm = wb.addWorksheet("Summary");
   // ---- BOM ----
@@ -60,7 +61,7 @@ export async function bomXlsx(d: ExportData): Promise<Buffer> {
   for (const [n, i] of d.items.entries()) {
     const row = ws.getRow(r);
     row.values = [
-      n + 1, d.sectionLabel(i.section), i.itemCode, i.name, i.specification ?? "", i.manufacturer ?? "", i.model ?? "", i.unit,
+      n + 1, sectionLabel(i.section), i.itemCode, i.name, i.specification ?? "", i.manufacturer ?? "", i.model ?? "", i.unit,
       i.calculatedQty ?? "TBC", i.procurementQty ?? null, QUANTITY_STATUS_LABEL[i.quantityStatus], i.unitPrice ?? null, null, i.gstRatePercent ?? null, null, null,
       i.priceProvenance ? PROVENANCE_LABEL[i.priceProvenance] : "", AVAILABILITY_LABEL[i.availability], i.supplierName ?? "", VERIFICATION_LABEL[i.complianceStatus],
       i.complianceReq ?? "", i.quantityBasis ?? "", i.technicalNotes ?? "", i.supplierRemarks ?? "",
@@ -74,7 +75,7 @@ export async function bomXlsx(d: ExportData): Promise<Buffer> {
   for (const [k, c] of d.bom.costItems.entries()) {
     const row = ws.getRow(r);
     row.values = [d.items.length + k + 1, "Other project costs", "COST", c.label, c.notes ?? "", "", "", "lot", 1, 1, "Estimated",
-      c.amount == null ? null : Number(c.amount), null, c.gstRatePercent == null ? null : Number(c.gstRatePercent), null, null];
+      c.amount, null, c.gstRatePercent, null, null];
     writeFormulas(row);
     r++;
   }
@@ -108,7 +109,7 @@ export async function bomXlsx(d: ExportData): Promise<Buffer> {
   // ---- Supplier comparison ----
   const sc = wb.addWorksheet("Supplier comparison");
   title(sc, "Supplier comparison", "Quotations on record from the active price list. Blank supplier columns are for procurement to fill in.");
-  const suppliers = [...new Set(d.priceEntries.map((e) => e.supplier?.name).filter(Boolean))] as string[];
+  const suppliers = [...new Set(d.priceEntries.map((e) => e.supplierName).filter(Boolean))] as string[];
   const supCols = suppliers.length ? suppliers : [];
   const blanks = ["Supplier 1", "Supplier 2", "Supplier 3"].slice(0, Math.max(0, 3 - supCols.length));
   const allSup = [...supCols, ...blanks];
@@ -120,8 +121,8 @@ export async function bomXlsx(d: ExportData): Promise<Buffer> {
     const rr = 5 + n;
     const vals: (string | number | null)[] = [i.itemCode, i.name, i.unit, i.procurementQty ?? null];
     for (const s of allSup) {
-      const e = d.priceEntries.find((x) => x.productId === i.productId && x.supplier?.name === s);
-      vals.push(e ? Number(e.unitPrice) : null, e?.leadTimeDays ?? null);
+      const e = d.priceEntries.find((x) => x.productId === i.productId && x.supplierName === s);
+      vals.push(e ? e.unitPrice : null, e?.leadTimeDays ?? null);
     }
     sc.getRow(rr).values = vals;
     const priceCols = allSup.map((_, k) => sc.getColumn(5 + k * 2).letter + rr);
@@ -139,7 +140,7 @@ export async function bomXlsx(d: ExportData): Promise<Buffer> {
   [20, 44, 22, 34, 22, 40, 22, 14].forEach((w, i) => (tc.getColumn(i + 1).width = w));
   let tr = 5;
   for (const c of d.compliance) {
-    tc.getRow(tr++).values = [c.template.area, c.template.title, c.template.standard?.code ?? "", c.template.standard?.officialUrl ?? "", VERIFICATION_LABEL[c.status], c.notes ?? "", c.reviewedBy ?? "", c.reviewedAt ?? ""];
+    tc.getRow(tr++).values = [c.area, c.title, c.standardCode ?? "", c.officialUrl ?? "", VERIFICATION_LABEL[c.status], c.notes ?? "", c.reviewedBy ?? "", c.reviewedAt?.slice(0, 10) ?? ""];
   }
   tr += 1;
   tc.getRow(tr++).values = ["BOM line requirements"];
@@ -186,5 +187,5 @@ export async function bomXlsx(d: ExportData): Promise<Buffer> {
   ];
   rows.forEach(([k, v], n) => (sm.getRow(4 + n).values = [k, v]));
 
-  return Buffer.from(await wb.xlsx.writeBuffer());
+  return new Uint8Array(await wb.xlsx.writeBuffer());
 }

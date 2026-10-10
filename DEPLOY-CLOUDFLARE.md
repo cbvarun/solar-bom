@@ -5,12 +5,12 @@ The app runs on Cloudflare Workers through the [OpenNext adapter](https://openne
 | Need | Cloudflare piece | Binding |
 |---|---|---|
 | PostgreSQL | Hyperdrive in front of a hosted Postgres (Neon, Supabase, RDS…) | `HYPERDRIVE` |
-| Uploaded datasheets, certificates and quotation PDFs | R2 bucket | `FILES` |
-| Static files, including the PDF fonts | Workers static assets | `ASSETS` |
+| Uploaded datasheets and certificates | R2 bucket | `FILES` |
+| Static files, including the fonts used for PDFs | Workers static assets | `ASSETS` |
 
 Cloudflare has no hosted PostgreSQL, and D1 (SQLite) cannot run this schema, so the database itself lives with a Postgres provider.
 
-**Plan:** use **Workers Paid** ($5/month). The minified bundle is about 2.9 MB gzipped, just under the free plan's 3 MB limit. More importantly, the free plan allows only 10 ms of CPU per request, which is not enough to render pages or generate PDF and Excel exports.
+**Plan:** you can start on the **free plan**. The minified bundle is about 2.6 MB gzipped, under the free plan's 3 MB limit. The free plan allows 10 ms of CPU per request, so PDF, Excel and CSV exports are built in the visitor's browser: the server only returns the BOM data as JSON, and quotations store that data so their PDF can be rebuilt exactly. Page rendering still runs on the server and has not been measured against the 10 ms limit on Cloudflare itself. If pages fail with error 1102 ("Worker exceeded resource limits"), move to **Workers Paid** ($5/month). Bulk import of large .xlsx files is also parsed on the server, so prefer CSV for big imports on the free plan.
 
 ## 1. Database (Neon)
 
@@ -69,7 +69,7 @@ R2 is simulated locally under `.wrangler/`.
 
 - `src/lib/db.ts` gives each Workers request its own Prisma client over the Hyperdrive connection, because Workers cannot share connections between requests. On Node it keeps a single client that uses `DATABASE_URL`.
 - `src/lib/server/storage.ts` writes to R2 on Workers and to `STORAGE_DIR` on Node.
-- `src/lib/server/runtime.ts` loads the PDF fonts from static assets on Workers and from `public/` on Node.
+- Exports are generated in the browser by `src/lib/exports/` from `GET /api/projects/[id]/export-data`, which keeps document generation off the Worker. The PDF fonts are served from `public/fonts`.
 - Prisma uses its WebAssembly query compiler with the `pg` driver adapter. That combination runs on both runtimes.
 
 `npm run dev`, `npm run build` and `npm start` still work as plain Node, so the app can also be deployed to any Node host.

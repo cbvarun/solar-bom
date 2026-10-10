@@ -1,9 +1,8 @@
-import PDFDocument from "pdfkit";
-import { publicFile } from "../runtime";
-import { prisma } from "@/lib/db";
+// The standalone build bundles pdfkit's dependencies and Buffer for the browser.
+import PDFDocument from "pdfkit/js/pdfkit.standalone";
+import { sectionLabel } from "@/lib/engine";
 import { QUANTITY_STATUS_LABEL, VERIFICATION_LABEL } from "@/lib/format";
-import { formatSpecValue } from "../catalogue";
-import { STANDARD_EXCLUSIONS, STANDARD_TERMS, type ExportData } from "./data";
+import { STANDARD_EXCLUSIONS, STANDARD_TERMS, type ExportPayload } from "./payload";
 
 const GREEN = "#163527";
 const MUTED = "#5b6660";
@@ -16,15 +15,24 @@ const qty = (v: number | null | undefined) => (v == null ? "TBC" : v.toLocaleStr
 
 interface Col { header: string; width: number; align?: "left" | "right"; get: (row: number) => string }
 
-export async function bomPdf(d: ExportData, opts: { quotationNumber?: string; validUntil?: Date } = {}): Promise<Buffer> {
-  const [FONT, FONT_B] = await Promise.all([publicFile("fonts/DejaVuSans.ttf"), publicFile("fonts/DejaVuSans-Bold.ttf")]);
-  // Pass a font up front so pdfkit never loads its built-in Helvetica metrics from disk.
+const font = (name: string) =>
+  fetch(`/fonts/${name}`).then((r) => {
+    if (!r.ok) throw new Error(`Could not load font ${name}`);
+    return r.arrayBuffer();
+  });
+
+/** Builds the PDF in the browser. Fonts are fetched from /public/fonts. */
+export async function bomPdf(d: ExportPayload, opts: { quotationNumber?: string; validUntil?: string } = {}): Promise<Blob> {
+  const [FONT, FONT_B] = await Promise.all([font("DejaVuSans.ttf"), font("DejaVuSans-Bold.ttf")]);
+  const validUntil = opts.validUntil ? new Date(opts.validUntil) : undefined;
+  const generatedAt = new Date(d.generatedAt);
+  const priced = new Map(d.pricing.lines.map((l) => [l.id, l]));
   const doc = new PDFDocument({ font: FONT as unknown as string, size: "A4", margins: { top: 50, bottom: 50, left: 40, right: 40 }, bufferPages: true, info: { Title: `${d.project.reference} BOM`, Author: d.company.name } });
   doc.registerFont("R", FONT);
   doc.registerFont("B", FONT_B);
-  const chunks: Buffer[] = [];
-  doc.on("data", (c) => chunks.push(c));
-  const done = new Promise<Buffer>((res) => doc.on("end", () => res(Buffer.concat(chunks))));
+  const chunks: Uint8Array[] = [];
+  doc.on("data", (c: Uint8Array) => chunks.push(c));
+  const done = new Promise<Blob>((res) => doc.on("end", () => res(new Blob(chunks as BlobPart[], { type: "application/pdf" }))));
 
   const W = doc.page.width - 80;
   const left = 40;
@@ -84,7 +92,7 @@ export async function bomPdf(d: ExportData, opts: { quotationNumber?: string; va
   doc.font("R").fontSize(8).fillColor("#dcece2").text(`${d.company.address} · ${d.company.phone} · ${d.company.email} · ${d.company.gstin}`, left, 40, { width: W - 60 });
   doc.y = 90;
   doc.font("B").fontSize(16).fillColor("#1d2521").text(opts.quotationNumber ? "Preliminary Quotation & Bill of Materials" : "Preliminary Bill of Materials", left);
-  doc.font("R").fontSize(9).fillColor(MUTED).text(`${d.project.reference} · BOM revision ${d.bom.currentRevision} (${d.bom.status.toLowerCase()}) · generated ${d.generatedAt.toLocaleDateString("en-IN")}`);
+  doc.font("R").fontSize(9).fillColor(MUTED).text(`${d.project.reference} · BOM revision ${d.bom.currentRevision} (${d.bom.status.toLowerCase()}) · generated ${generatedAt.toLocaleDateString("en-IN")}`);
   doc.moveDown(0.5);
   doc.rect(left, doc.y, W, 34).fillAndStroke("#fffbea", "#f5c02c");
   doc.font("B").fontSize(8).fillColor("#8a630d").text("PRELIMINARY ESTIMATE — not a substitute for electrical, structural or BESCOM/utility approval. Quantities marked Estimated or To be confirmed must be verified by a design engineer.", left + 8, doc.y + 6, { width: W - 16 });
@@ -94,7 +102,7 @@ export async function bomPdf(d: ExportData, opts: { quotationNumber?: string; va
   kv([
     ["Project", d.project.name], ["Reference", d.project.reference], ["Location", d.project.location ?? "To be confirmed"],
     ["Customer", [d.project.customerName, d.project.customerEmail, d.project.customerPhone].filter(Boolean).join(" · ") || "Not provided"],
-    ...(opts.quotationNumber ? ([["Quotation no.", opts.quotationNumber], ["Valid until", opts.validUntil?.toLocaleDateString("en-IN") ?? "—"]] as [string, string][]) : []),
+    ...(opts.quotationNumber ? ([["Quotation no.", opts.quotationNumber], ["Valid until", validUntil?.toLocaleDateString("en-IN") ?? "—"]] as [string, string][]) : []),
   ]);
 
   h1("Design summary and assumptions");
@@ -132,34 +140,33 @@ export async function bomPdf(d: ExportData, opts: { quotationNumber?: string; va
     { header: "Qty", width: 30, align: "right", get: (r) => qty(it[r].procurementQty) },
     { header: "Status", width: 46, get: (r) => QUANTITY_STATUS_LABEL[it[r].quantityStatus] },
     { header: "Unit price", width: 50, align: "right", get: (r) => amt(it[r].unitPrice) },
-    { header: "Subtotal", width: 52, align: "right", get: (r) => amt(d.priced.get(it[r].id)?.subtotal) },
-    { header: "GST", width: 45, align: "right", get: (r) => (it[r].gstRatePercent != null ? `${it[r].gstRatePercent}%\n${amt(d.priced.get(it[r].id)?.gst)}` : "not set") },
-    { header: "Total", width: W - 463, align: "right", get: (r) => amt(d.priced.get(it[r].id)?.total) },
-  ], it.length, { groupLabel: (r) => d.sectionLabel(it[r].section) });
+    { header: "Subtotal", width: 52, align: "right", get: (r) => amt(priced.get(it[r].id)?.subtotal) },
+    { header: "GST", width: 45, align: "right", get: (r) => (it[r].gstRatePercent != null ? `${it[r].gstRatePercent}%\n${amt(priced.get(it[r].id)?.gst)}` : "not set") },
+    { header: "Total", width: W - 463, align: "right", get: (r) => amt(priced.get(it[r].id)?.total) },
+  ], it.length, { groupLabel: (r) => sectionLabel(it[r].section) });
 
   // ---------- Cost summary ----------
   h1("Cost summary");
   const p = d.pricing;
   kv([
     ["Equipment (excl. GST)", inr(p.equipmentSubtotal)], ["Engineering, installation and services (excl. GST)", inr(p.servicesSubtotal)],
-    ...d.bom.costItems.map((c) => [`${c.label} (excl. GST)`, c.amount == null ? "Not priced" : inr(Number(c.amount))] as [string, string]),
+    ...d.bom.costItems.map((c) => [`${c.label} (excl. GST)`, c.amount == null ? "Not priced" : inr(c.amount)] as [string, string]),
     ["Subtotal (excl. GST)", inr(p.subtotalExGst)], ["GST", inr(p.gstTotal)], ["Estimated total (incl. GST)", inr(p.grandTotal)],
   ], 260);
   if (!p.complete) { doc.moveDown(0.3); para(`Incomplete pricing: ${p.unpricedLines} line(s) without a unit price and ${p.untaxedLines} without a configured GST rate. The total covers priced lines only.`, 8.5, "#8a630d"); }
 
   // ---------- Technical specs of major equipment ----------
-  const majorIds = it.filter((i) => ["PV_MODULES", "INVERTER", "MOUNTING"].includes(i.section) && i.productId).map((i) => i.productId!) ;
-  const majors = await prisma.product.findMany({ where: { id: { in: [...new Set(majorIds)].slice(0, 4) } }, include: { specifications: { orderBy: { sortOrder: "asc" } }, manufacturer: true } });
+  const majors = d.majors;
   if (majors.length) {
     h1("Technical specifications — major equipment");
     for (const m of majors) {
       ensure(40);
       doc.font("B").fontSize(9).fillColor("#1d2521").text(`${m.name} (${m.sku})${m.illustrative ? " — illustrative template, not a manufacturer datasheet" : ""}`, left);
-      const specs = m.specifications.filter((x) => x.key !== "bom_role").slice(0, 14);
+      const specs = m.specs;
       table([
         { header: "Parameter", width: W * 0.5, get: (r) => specs[r].label },
-        { header: "Value", width: W * 0.25, get: (r) => formatSpecValue(specs[r]) },
-        { header: "Source", width: W * 0.25, get: (r) => specs[r].provenance.replace(/_/g, " ").toLowerCase() },
+        { header: "Value", width: W * 0.25, get: (r) => specs[r].value },
+        { header: "Source", width: W * 0.25, get: (r) => specs[r].provenance },
       ], specs.length, { size: 7 });
       doc.moveDown(0.4);
     }
@@ -171,9 +178,9 @@ export async function bomPdf(d: ExportData, opts: { quotationNumber?: string; va
   doc.moveDown(0.3);
   const cl = d.compliance;
   table([
-    { header: "Area", width: W * 0.18, get: (r) => cl[r].template.area },
-    { header: "Check", width: W * 0.42, get: (r) => cl[r].template.title + (cl[r].notes ? `\n${cl[r].notes}` : "") },
-    { header: "Reference", width: W * 0.18, get: (r) => cl[r].template.standard?.code ?? "—" },
+    { header: "Area", width: W * 0.18, get: (r) => cl[r].area },
+    { header: "Check", width: W * 0.42, get: (r) => cl[r].title + (cl[r].notes ? `\n${cl[r].notes}` : "") },
+    { header: "Reference", width: W * 0.18, get: (r) => cl[r].standardCode ?? "—" },
     { header: "Status", width: W * 0.22, get: (r) => VERIFICATION_LABEL[cl[r].status] },
   ], cl.length);
 
@@ -183,7 +190,7 @@ export async function bomPdf(d: ExportData, opts: { quotationNumber?: string; va
   doc.moveDown(0.3);
   for (const e of STANDARD_EXCLUSIONS) { ensure(14); para(`•  ${e}`); }
   h1("Quotation validity");
-  para(opts.validUntil ? `This quotation is valid until ${opts.validUntil.toLocaleDateString("en-IN")}, subject to supplier price confirmation.` : `Indicative prices are valid for ${d.validityDays} days from the date of generation, subject to supplier price confirmation.`);
+  para(validUntil ? `This quotation is valid until ${validUntil.toLocaleDateString("en-IN")}, subject to supplier price confirmation.` : `Indicative prices are valid for ${d.validityDays} days from the date of generation, subject to supplier price confirmation.`);
   h1("Terms and conditions");
   STANDARD_TERMS.forEach((t, n) => { ensure(14); para(`${n + 1}. ${t}`); });
 

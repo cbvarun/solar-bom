@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { loadProjectOr404 } from "@/lib/server/access";
 import { bomPricing, loadBom } from "@/lib/server/bom";
+import { ExportButtons } from "@/components/exports/ExportButtons";
+import { QuotePdfButton } from "@/components/exports/QuotePdfButton";
 import { QuoteRequestForm } from "@/components/project/QuoteRequestForm";
 import { Alert } from "@/components/ui/Alert";
 import { formatDate, formatINR } from "@/lib/format";
@@ -11,28 +13,14 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
   const bom = await loadBom(prisma, id);
   if (!bom) return null;
   const pricing = bomPricing(bom);
-  const quotes = access === "edit" ? await prisma.quotation.findMany({ where: { projectId: id }, orderBy: { createdAt: "desc" } }) : [];
-  const dl = (fmt: string) => `/api/projects/${id}/export/${fmt}`;
+  const quotes = access === "edit" ? await prisma.quotation.findMany({ where: { projectId: id }, omit: { snapshot: true }, orderBy: { createdAt: "desc" } }) : [];
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <div className="space-y-6">
         <section className="card p-5">
           <h2 className="section-title">Export the BOM</h2>
           <p className="mt-1 text-sm text-ink-muted">Exports reflect BOM revision {bom.currentRevision} including your latest edits. All documents are marked preliminary.</p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <a href={dl("pdf")} className="card block p-4 no-underline hover:border-brand-300">
-              <p className="font-semibold text-ink">PDF quotation document</p>
-              <p className="mt-1 text-xs text-ink-muted">Branding, project details, assumptions, detailed BOM, specifications, cost summary, taxes and exclusions, compliance notes, validity and terms.</p>
-            </a>
-            <a href={dl("xlsx")} className="card block p-4 no-underline hover:border-brand-300">
-              <p className="font-semibold text-ink">Excel workbook (.xlsx)</p>
-              <p className="mt-1 text-xs text-ink-muted">Editable BOM with live price and GST formulas, products & quantities, supplier comparison, technical compliance, assumptions & exclusions.</p>
-            </a>
-            <a href={dl("csv")} className="card block p-4 no-underline hover:border-brand-300">
-              <p className="font-semibold text-ink">CSV for ERP import</p>
-              <p className="mt-1 text-xs text-ink-muted">Flat, procurement-ready BOM, one row per line with stable column names.</p>
-            </a>
-          </div>
+          <ExportButtons projectId={id} />
         </section>
         <section className="card p-5">
           <h2 className="section-title">Cost summary</h2>
@@ -51,7 +39,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
                 <thead><tr><th>Number</th><th>Rev</th><th>Status</th><th className="num">Total</th><th>Valid until</th><th /></tr></thead>
                 <tbody>{quotes.map((q) => {
                   const t = q.totals as { total?: number };
-                  return <tr key={q.id}><td className="font-mono text-xs">{q.number}</td><td>{q.revisionNo}</td><td>{q.status.toLowerCase()}</td><td className="num">{formatINR(t.total ?? null)}</td><td>{formatDate(q.validUntil)}</td><td><a href={`/api/quotations/${q.id}/pdf`}>PDF</a></td></tr>;
+                  return <tr key={q.id}><td className="font-mono text-xs">{q.number}</td><td>{q.revisionNo}</td><td>{q.status.toLowerCase()}</td><td className="num">{formatINR(t.total ?? null)}</td><td>{formatDate(q.validUntil)}</td><td><QuotePdfButton quotationId={q.id} storedPdf={!!q.pdfStorageKey} /></td></tr>;
                 })}</tbody>
               </table>
             )}
@@ -60,7 +48,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
       </div>
       <section className="card h-fit p-5">
         <h2 className="section-title">Send to our sales team</h2>
-        <p className="mt-1 text-sm text-ink-muted">Submit this BOM as a quote request, or send it to sales for review. A numbered quotation PDF is generated and stored with the project.</p>
+        <p className="mt-1 text-sm text-ink-muted">Submit this BOM as a quote request, or send it to sales for review. A numbered quotation is created and stored with the project.</p>
         <div className="mt-4"><QuoteRequestForm projectId={id} defaultName={project.customerName ?? ""} defaultEmail={project.customerEmail ?? ""} /></div>
       </section>
     </div>

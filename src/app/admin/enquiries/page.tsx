@@ -5,13 +5,14 @@ import { PageHead, Select, Hidden } from "@/components/admin/Fields";
 import { ActionForm, Submit } from "@/components/admin/ActionForm";
 import { Badge } from "@/components/ui/Badge";
 import { updateEnquiry } from "../actions";
+import { QuotePdfButton } from "@/components/exports/QuotePdfButton";
 import { CUSTOMER_TYPE_LABEL, formatDateTime, formatINR } from "@/lib/format";
 
 export default async function AdminEnquiries() {
   const { can } = await adminCtx();
   const [enquiries, quotes, users] = await Promise.all([
     prisma.enquiry.findMany({ include: { project: true }, orderBy: { createdAt: "desc" }, take: 200 }),
-    prisma.quotation.findMany({ include: { project: true }, orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.quotation.findMany({ include: { project: true }, omit: { snapshot: true }, orderBy: { createdAt: "desc" }, take: 100 }),
     prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ]);
   const canManage = can("enquiries.manage");
@@ -65,7 +66,7 @@ export default async function AdminEnquiries() {
                     <td>{q.revisionNo}</td>
                     <td className="num">{formatINR(t?.total ?? null)}{t && ((t.unpricedLines ?? 0) > 0 || (t.untaxedLines ?? 0) > 0) && <span className="block text-xs text-solar-700">incomplete pricing</span>}</td>
                     <td className="text-xs">{q.validUntil ? formatDateTime(q.validUntil).split(",")[0] : "—"}</td>
-                    <td>{q.pdfStorageKey ? <a href={`/api/quotations/${q.id}/pdf`}>Download</a> : "—"}</td>
+                    <td><QuotePdfButton quotationId={q.id} storedPdf={!!q.pdfStorageKey} label="Download" /></td>
                   </tr>
                 );
               })}

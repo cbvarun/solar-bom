@@ -14,7 +14,7 @@ Stack: Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS · Post
 | Compliance sources (BIS, MNRE ALMM, CEA, BESCOM, KERC, IS/IEC) | **Pending verification.** Each record links to the authority's homepage. An engineer must confirm the current revision against the official publication and record it before marking a source verified. |
 | Sample project "Bengaluru Commercial Rooftop Solar" | Illustrative. It is read-only to visitors (duplicate it to edit). It has **not** been submitted to BESCOM and holds no approvals. Every checklist item is pending. |
 | Email to sales | **Not implemented.** Quote requests and enquiries are stored and appear under Admin → Enquiries & quotes. The UI says plainly that no email was sent. To add email, implement `src/lib/server/notify.ts` against `SMTP_URL`. |
-| File storage | An R2 bucket on Cloudflare, or local disk under `STORAGE_DIR` on Node. Files are kept outside `/public` and served only through `/api/documents/[id]` and `/api/quotations/[id]/pdf`. |
+| File storage | An R2 bucket on Cloudflare, or local disk under `STORAGE_DIR` on Node. Files are kept outside `/public` and served only through `/api/documents/[id]`. Quotations store a snapshot of their data, and the browser rebuilds the PDF from it. |
 | Company details | Taken from `NEXT_PUBLIC_COMPANY_*`. When unset, pages and PDFs show "not configured" rather than invented details. |
 | Generation, savings and payback | Shown only when an engineer enters a verified specific yield with its source. They are always labelled as estimates, never guarantees. |
 
@@ -56,7 +56,8 @@ Customers do not sign in. A project they create is tied to their browser through
 ## Structure
 
 - `src/lib/engine/`: the calculation engine. It is pure TypeScript with no UI or database code, and covers module count, string design with cold-temperature Voc, inverter evaluation, cable sizing and voltage drop, mounting quantities, protection without duplicating functions built into the inverter, earthing, and pricing with GST. All rule values come from `EngineRule` rows, which are editable under Admin → Engineering rules. Unit tests are in `__tests__/`.
-- `src/lib/server/`: data access and workflows: BOM generation and merging, audit log, exports (PDF, XLSX with live formulas, CSV), bulk import, storage and permissions.
+- `src/lib/server/`: data access and workflows: BOM generation and merging, audit log, export data, bulk import, storage and permissions.
+- `src/lib/exports/`: PDF, XLSX (with live formulas) and CSV generators. They run in the browser from the JSON the server returns, so no document is generated on the server.
 - `src/app/`: pages and API routes. `src/app/admin/actions.ts` holds every admin server action, each checked against `src/lib/server/permissions.ts` and audited.
 - `prisma/`: schema, migrations and seed.
 
