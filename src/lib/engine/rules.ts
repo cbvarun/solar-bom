@@ -90,3 +90,37 @@ export function rule(rules: Rules, key: string): number | null {
 export function ruleLabel(key: string): string {
   return RULE_DEFINITIONS.find((r) => r.key === key)?.label ?? key;
 }
+
+/**
+ * Compatibility-rule policy. Admins can switch a rule off or downgrade it to a
+ * warning; the setting arrives as rules[`compat.<key>`] = 2 (error), 1 (warning)
+ * or 0 (off). A switched-off check is still reported, as "info", so it is never
+ * silently hidden. Voltage and current limits that protect equipment are locked.
+ */
+export const CHECK_TO_COMPAT: Record<string, string> = {
+  phase_mismatch: "phase_match",
+  inverter_type: "system_type_match",
+  string_window_empty: "string_voc_cold",
+  string_layout_impossible: "string_voc_cold",
+  mpp_above_mppt: "mppt_window",
+  mpp_below_mppt: "mppt_window",
+  mppt_isc_exceeded: "mppt_current",
+  mppt_imp_clipping: "mppt_current",
+  dc_ac_low: "dc_ac_ratio",
+  dc_ac_high: "dc_ac_ratio",
+  max_dc_power: "dc_ac_ratio",
+};
+export const LOCKED_COMPAT_RULES = ["string_voc_cold", "mppt_current"];
+/** Rules described in the catalogue but checked manually, not by the engine. */
+export const MANUAL_COMPAT_RULES = ["connector_intermate"];
+
+export function applyCompatPolicy<T extends { key: string; severity: "error" | "warning" | "info"; message: string }>(issues: T[], rules: Rules): T[] {
+  return issues.map((i) => {
+    const compat = CHECK_TO_COMPAT[i.key];
+    if (!compat || LOCKED_COMPAT_RULES.includes(compat)) return i;
+    const level = rules[`compat.${compat}`];
+    if (level == null || level >= 2) return i;
+    if (level >= 1) return i.severity === "error" ? { ...i, severity: "warning" as const } : i;
+    return { ...i, severity: "info" as const, message: `${i.message} (Check “${compat}” is switched off in rule settings; engineering to confirm.)` };
+  });
+}

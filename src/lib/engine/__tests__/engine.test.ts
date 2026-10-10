@@ -222,3 +222,14 @@ describe("Design array override", () => {
     expect(pv.quantityBasis).toContain("= 10 modules");
   });
 });
+
+describe("compatibility policy", () => {
+  const issue = (key: string) => ({ key, severity: "error" as const, area: "x", message: "m" });
+  it("downgrades, disables (as info) and leaves locked rules alone", async () => {
+    const { applyCompatPolicy } = await import("../rules");
+    const out = applyCompatPolicy([issue("dc_ac_low"), issue("phase_mismatch"), issue("mppt_isc_exceeded"), issue("unmapped")],
+      { "compat.dc_ac_ratio": 1, "compat.phase_match": 0, "compat.mppt_current": 0 });
+    expect(out.map((i) => i.severity)).toEqual(["warning", "info", "error", "error"]);
+    expect(out[1].message).toMatch(/switched off/);
+  });
+});

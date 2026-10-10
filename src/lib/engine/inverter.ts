@@ -1,4 +1,4 @@
-import { rule } from "./rules";
+import { applyCompatPolicy, rule } from "./rules";
 import { designStrings } from "./strings";
 import { round } from "./pv";
 import type { Check, InverterEvaluation, InverterSpec, ModuleSpec, Phase, Rules, SystemType } from "./types";
@@ -59,14 +59,15 @@ export function evaluateInverter(inv: InverterSpec, ctx: InverterContext): Inver
     iscFactor: rule(ctx.rules, "isc_safety_factor") ?? 1.25,
   });
   issues.push(...stringIssues);
+  const finalIssues = applyCompatPolicy(issues, ctx.rules);
 
   return {
     inverterId: inv.id,
     label: `${inv.manufacturer} ${inv.model}`,
     ratedAcW: inv.ratedAcW,
     dcAcRatio: ratio == null ? null : round(ratio, 3),
-    compatible: !issues.some((i) => i.severity === "error"),
-    issues,
+    compatible: !finalIssues.some((i) => i.severity === "error"),
+    issues: finalIssues,
     layout,
   };
 }

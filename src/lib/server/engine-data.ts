@@ -109,5 +109,6 @@ export async function loadRules(db: Db): Promise<Rules> {
   const rows = await db.engineRule.findMany();
   const rules = defaultRules();
   for (const r of rows) rules[r.key] = r.valueNumber == null ? null : Number(r.valueNumber);
+  for (const c of await db.compatibilityRule.findMany()) rules[`compat.${c.key}`] = !c.enabled ? 0 : c.severity === "warning" ? 1 : 2;
   return rules;
 }

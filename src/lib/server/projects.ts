@@ -127,7 +127,12 @@ export async function generateAndSaveBom(db: PrismaClient, projectId: string, ac
     if (!bom) bom = await tx.bOMHeader.create({ data: { projectId, title: "Preliminary BOM" } });
     const existing = await tx.bOMItem.findMany({ where: { bomId: bom.id } });
     const byRule = new Map(existing.filter((e) => !e.isManual && e.ruleKey).map((e) => [e.ruleKey!, e]));
-    const priceList = await tx.priceList.findFirst({ where: { active: true }, include: { entries: { include: { supplier: true } } } });
+    // Catalogue prices: only active lists whose GST basis matches this BOM, only unexpired supplier entries; lowest wins.
+    const now = new Date();
+    const priceEntries = (await tx.priceListEntry.findMany({
+      where: { priceList: { active: true, pricesIncludeGst: bom.pricesIncludeGst }, OR: [{ validTo: null }, { validTo: { gte: now } }] },
+      include: { supplier: true }, orderBy: { unitPrice: "asc" },
+    }));
     const products = await tx.product.findMany({ where: { id: { in: result.lines.map((l) => l.productId).filter(Boolean) as string[] } }, include: { taxClass: true } });
     const prodById = new Map(products.map((p) => [p.id, p]));
     const seen = new Set<string>();
@@ -135,7 +140,7 @@ export async function generateAndSaveBom(db: PrismaClient, projectId: string, ac
     for (const [i, l] of result.lines.entries()) {
       seen.add(l.ruleKey);
       const prod = l.productId ? prodById.get(l.productId) : undefined;
-      const priceEntry = l.productId ? priceList?.entries.find((e) => e.productId === l.productId) : undefined;
+      const priceEntry = l.productId ? priceEntries.find((e) => e.productId === l.productId) : undefined;
       const calc = dec(l.calculatedQty);
       const prior = byRule.get(l.ruleKey);
       if (!prior) {
@@ -166,7 +171,11 @@ export async function generateAndSaveBom(db: PrismaClient, projectId: string, ac
           calculatedQty: calc, procurementQty: overridden && !prior.removed ? prior.procurementQty : calc, quantityStatus: status,
           quantityBasis: l.quantityBasis, productId: l.productId ?? null, manufacturer: l.manufacturer, model: l.model,
           complianceReq: l.complianceReq, technicalNotes: l.technicalNotes, removed: prior.removed,
-          ...(productChanged ? { gstRatePercent: prod?.taxClass?.ratePercent ?? null, taxClassCode: prod?.taxClass?.code ?? null, unitPrice: priceEntry?.unitPrice ?? null, priceProvenance: priceEntry?.provenance ?? null } : {}),
+          ...(productChanged ? { gstRatePercent: prod?.taxClass?.ratePercent ?? null, taxClassCode: prod?.taxClass?.code ?? null, unitPrice: priceEntry?.unitPrice ?? null, priceProvenance: priceEntry?.provenance ?? null, supplierName: priceEntry?.supplier?.name ?? null } : {}),
+          // Fill a still-unpriced line from the catalogue; never overwrite a price someone entered.
+          ...(!productChanged && prior.unitPrice == null && priceEntry ? { unitPrice: priceEntry.unitPrice, priceProvenance: priceEntry.provenance, supplierName: prior.supplierName ?? priceEntry.supplier?.name ?? null } : {}),
+          // Likewise pick up a GST rate configured after the line was created.
+          ...(!productChanged && prior.gstRatePercent == null && prod?.taxClass?.ratePercent != null ? { gstRatePercent: prod.taxClass.ratePercent, taxClassCode: prod.taxClass.code } : {}),
         },
       });
       if (qtyChanged) await audit(tx, actor, { entityType: "BOMItem", entityId: prior.id, action: "recalculate", field: "calculatedQty", oldValue: oldCalc, newValue: l.calculatedQty, reason: summary });
