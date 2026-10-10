@@ -1,0 +1,2 @@
+# Secrets for `npm run cf:preview` (wrangler dev). Copy to .dev.vars.
+SESSION_SECRET=""

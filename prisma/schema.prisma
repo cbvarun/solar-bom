@@ -2,7 +2,10 @@
 // Technical values carry units, tolerances, provenance and verification dates.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  // Rust-free client over the node-postgres driver: the same code runs on
+  // Node and on Cloudflare Workers (through Hyperdrive).
+  previewFeatures = ["queryCompiler", "driverAdapters"]
 }
 
 datasource db {
@@ -22,10 +25,10 @@ enum RoleCode {
 /// Where a technical value or price came from.
 enum Provenance {
   MANUFACTURER_VERIFIED // checked against a manufacturer datasheet (see sourceDocument)
-  SUPPLIER_QUOTED       // from a supplier quotation
-  ENGINEER_ENTERED      // entered by a design engineer
-  USER_ESTIMATE         // entered by a customer / sales user as an estimate
-  ILLUSTRATIVE          // sample/template data, not a real product claim
+  SUPPLIER_QUOTED // from a supplier quotation
+  ENGINEER_ENTERED // entered by a design engineer
+  USER_ESTIMATE // entered by a customer / sales user as an estimate
+  ILLUSTRATIVE // sample/template data, not a real product claim
 }
 
 enum VerificationStatus {
@@ -153,27 +156,27 @@ model ProductCategory {
 }
 
 model Manufacturer {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  website     String?
-  country     String?
-  notes       String?
-  illustrative Boolean  @default(false) // placeholder record, not a real manufacturer
-  archived    Boolean   @default(false)
-  products    Product[]
+  id           String    @id @default(cuid())
+  name         String    @unique
+  website      String?
+  country      String?
+  notes        String?
+  illustrative Boolean   @default(false) // placeholder record, not a real manufacturer
+  archived     Boolean   @default(false)
+  products     Product[]
 }
 
 model Supplier {
-  id           String      @id @default(cuid())
-  name         String      @unique
+  id           String           @id @default(cuid())
+  name         String           @unique
   contactName  String?
   email        String?
   phone        String?
   city         String?
   gstin        String?
   notes        String?
-  illustrative Boolean     @default(false)
-  archived     Boolean     @default(false)
+  illustrative Boolean          @default(false)
+  archived     Boolean          @default(false)
   prices       PriceListEntry[]
 }
 
@@ -192,39 +195,39 @@ model TaxClass {
 }
 
 model Product {
-  id              String             @id @default(cuid())
-  sku             String             @unique
-  name            String
-  model           String
-  description     String?
-  categoryId      String
-  manufacturerId  String
-  taxClassId      String?
-  unit            String             // quantity unit: nos, m, set, lot, kWh ...
-  status          ProductStatus      @default(ACTIVE)
-  availability    AvailabilityStatus @default(UNKNOWN)
-  leadTimeDays    Int?
-  warrantyText    String?            // as stated by manufacturer; null if not verified
+  id                 String                 @id @default(cuid())
+  sku                String                 @unique
+  name               String
+  model              String
+  description        String?
+  categoryId         String
+  manufacturerId     String
+  taxClassId         String?
+  unit               String // quantity unit: nos, m, set, lot, kWh ...
+  status             ProductStatus          @default(ACTIVE)
+  availability       AvailabilityStatus     @default(UNKNOWN)
+  leadTimeDays       Int?
+  warrantyText       String? // as stated by manufacturer; null if not verified
   warrantyProvenance Provenance?
-  ipRating        String?
-  material        String?
-  dimensionsText  String?
-  weightKg        Decimal?           @db.Decimal(10, 3)
-  imageUrl        String?
-  illustrative    Boolean            @default(false)
-  provenance      Provenance         @default(ILLUSTRATIVE)
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  category        ProductCategory    @relation(fields: [categoryId], references: [id])
-  manufacturer    Manufacturer       @relation(fields: [manufacturerId], references: [id])
-  taxClass        TaxClass?          @relation(fields: [taxClassId], references: [id])
-  specifications  ProductSpecification[]
-  compatibilityA  ProductCompatibility[] @relation("CompatA")
-  compatibilityB  ProductCompatibility[] @relation("CompatB")
-  documents       ComplianceDocument[]
-  certifications  ProductCertification[]
-  prices          PriceListEntry[]
-  bomItems        BOMItem[]
+  ipRating           String?
+  material           String?
+  dimensionsText     String?
+  weightKg           Decimal?               @db.Decimal(10, 3)
+  imageUrl           String?
+  illustrative       Boolean                @default(false)
+  provenance         Provenance             @default(ILLUSTRATIVE)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  category           ProductCategory        @relation(fields: [categoryId], references: [id])
+  manufacturer       Manufacturer           @relation(fields: [manufacturerId], references: [id])
+  taxClass           TaxClass?              @relation(fields: [taxClassId], references: [id])
+  specifications     ProductSpecification[]
+  compatibilityA     ProductCompatibility[] @relation("CompatA")
+  compatibilityB     ProductCompatibility[] @relation("CompatB")
+  documents          ComplianceDocument[]
+  certifications     ProductCertification[]
+  prices             PriceListEntry[]
+  bomItems           BOMItem[]
 
   @@index([categoryId])
   @@index([manufacturerId])
@@ -232,37 +235,37 @@ model Product {
 
 /// A single technical value with unit, tolerance and provenance.
 model ProductSpecification {
-  id            String     @id @default(cuid())
-  productId     String
-  key           String     // machine key used by the calculation engine, e.g. pmax_w, voc_v
-  label         String
-  valueNumber   Decimal?   @db.Decimal(18, 6)
-  valueText     String?
-  unit          String?
-  tolerance     String?    // e.g. "0/+5 W", "±3 %"
-  provenance    Provenance @default(ILLUSTRATIVE)
+  id               String              @id @default(cuid())
+  productId        String
+  key              String // machine key used by the calculation engine, e.g. pmax_w, voc_v
+  label            String
+  valueNumber      Decimal?            @db.Decimal(18, 6)
+  valueText        String?
+  unit             String?
+  tolerance        String? // e.g. "0/+5 W", "±3 %"
+  provenance       Provenance          @default(ILLUSTRATIVE)
   sourceDocumentId String?
-  verifiedAt    DateTime?
-  verifiedBy    String?
-  sortOrder     Int        @default(0)
-  product       Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
-  sourceDocument ComplianceDocument? @relation(fields: [sourceDocumentId], references: [id])
+  verifiedAt       DateTime?
+  verifiedBy       String?
+  sortOrder        Int                 @default(0)
+  product          Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sourceDocument   ComplianceDocument? @relation(fields: [sourceDocumentId], references: [id])
 
   @@unique([productId, key])
 }
 
 /// Explicit compatibility record between two products, or a rule note.
 model ProductCompatibility {
-  id         String   @id @default(cuid())
+  id         String     @id @default(cuid())
   productAId String
   productBId String
   compatible Boolean
   notes      String?
   provenance Provenance @default(ENGINEER_ENTERED)
   verifiedAt DateTime?
-  createdAt  DateTime @default(now())
-  productA   Product  @relation("CompatA", fields: [productAId], references: [id], onDelete: Cascade)
-  productB   Product  @relation("CompatB", fields: [productBId], references: [id], onDelete: Cascade)
+  createdAt  DateTime   @default(now())
+  productA   Product    @relation("CompatA", fields: [productAId], references: [id], onDelete: Cascade)
+  productB   Product    @relation("CompatB", fields: [productBId], references: [id], onDelete: Cascade)
 
   @@unique([productAId, productBId])
 }
@@ -281,19 +284,19 @@ model CompatibilityRule {
 // ---------- Compliance ----------
 
 model ComplianceStandard {
-  id                 String             @id @default(cuid())
-  code               String             @unique
+  id                 String                    @id @default(cuid())
+  code               String                    @unique
   title              String
-  authority          String             // BIS, IEC, MNRE, CEA, BESCOM, KERC, ...
-  scope              String             // module, inverter, electrical, grid, structural, earthing, ...
+  authority          String // BIS, IEC, MNRE, CEA, BESCOM, KERC, ...
+  scope              String // module, inverter, electrical, grid, structural, earthing, ...
   officialUrl        String?
   revision           String?
   revisionDate       DateTime?
   applicabilityNotes String?
-  verificationStatus VerificationStatus @default(PENDING_VERIFICATION)
+  verificationStatus VerificationStatus        @default(PENDING_VERIFICATION)
   verifiedAt         DateTime?
   verifiedBy         String?
-  active             Boolean            @default(true)
+  active             Boolean                   @default(true)
   documents          ComplianceDocument[]
   certifications     ProductCertification[]
   checks             ComplianceCheckTemplate[]
@@ -301,43 +304,43 @@ model ComplianceStandard {
 
 /// Stored file: datasheet, certificate, regulation, approval letter.
 model ComplianceDocument {
-  id           String   @id @default(cuid())
-  title        String
-  docType      String   // DATASHEET | CERTIFICATE | REGULATION | APPROVAL | TEST_REPORT | OTHER
-  fileName     String?
-  storageKey   String?  // key in secure storage; null for external links
-  mimeType     String?
-  sizeBytes    Int?
-  externalUrl  String?
-  revision     String?
-  issuedAt     DateTime?
-  expiresAt    DateTime?
-  productId    String?
-  standardId   String?
-  projectId    String?
-  uploadedBy   String?
-  createdAt    DateTime @default(now())
-  product      Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
-  standard     ComplianceStandard? @relation(fields: [standardId], references: [id], onDelete: SetNull)
-  project      Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  specs        ProductSpecification[]
+  id             String                  @id @default(cuid())
+  title          String
+  docType        String // DATASHEET | CERTIFICATE | REGULATION | APPROVAL | TEST_REPORT | OTHER
+  fileName       String?
+  storageKey     String? // key in secure storage; null for external links
+  mimeType       String?
+  sizeBytes      Int?
+  externalUrl    String?
+  revision       String?
+  issuedAt       DateTime?
+  expiresAt      DateTime?
+  productId      String?
+  standardId     String?
+  projectId      String?
+  uploadedBy     String?
+  createdAt      DateTime                @default(now())
+  product        Product?                @relation(fields: [productId], references: [id], onDelete: SetNull)
+  standard       ComplianceStandard?     @relation(fields: [standardId], references: [id], onDelete: SetNull)
+  project        Project?                @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  specs          ProductSpecification[]
   certifications ProductCertification[]
-  checkItems   ProjectComplianceItem[]
+  checkItems     ProjectComplianceItem[]
 }
 
 /// A product's claimed certification against a standard. Never implies project compliance.
 model ProductCertification {
-  id                 String             @id @default(cuid())
+  id                 String              @id @default(cuid())
   productId          String
   standardId         String
   certificateNo      String?
   documentId         String?
-  verificationStatus VerificationStatus @default(PENDING_VERIFICATION)
+  verificationStatus VerificationStatus  @default(PENDING_VERIFICATION)
   validUntil         DateTime?
   verifiedAt         DateTime?
   notes              String?
-  product            Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
-  standard           ComplianceStandard @relation(fields: [standardId], references: [id], onDelete: Cascade)
+  product            Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  standard           ComplianceStandard  @relation(fields: [standardId], references: [id], onDelete: Cascade)
   document           ComplianceDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
 
   @@unique([productId, standardId])
@@ -345,32 +348,32 @@ model ProductCertification {
 
 /// Template for a project compliance check; copied into each project's checklist.
 model ComplianceCheckTemplate {
-  id           String   @id @default(cuid())
-  key          String   @unique
-  title        String
-  area         String   // Equipment, Grid interconnection, Electrical safety, Structural, Earthing & protection
-  description  String
-  standardId   String?
-  appliesTo    Json?    // e.g. {"systemTypes":["GRID_TIED"],"roofTypes":["RCC_FLAT"]}
-  sortOrder    Int      @default(0)
-  active       Boolean  @default(true)
-  standard     ComplianceStandard? @relation(fields: [standardId], references: [id], onDelete: SetNull)
-  items        ProjectComplianceItem[]
+  id          String                  @id @default(cuid())
+  key         String                  @unique
+  title       String
+  area        String // Equipment, Grid interconnection, Electrical safety, Structural, Earthing & protection
+  description String
+  standardId  String?
+  appliesTo   Json? // e.g. {"systemTypes":["GRID_TIED"],"roofTypes":["RCC_FLAT"]}
+  sortOrder   Int                     @default(0)
+  active      Boolean                 @default(true)
+  standard    ComplianceStandard?     @relation(fields: [standardId], references: [id], onDelete: SetNull)
+  items       ProjectComplianceItem[]
 }
 
 model ProjectComplianceItem {
-  id          String             @id @default(cuid())
-  projectId   String
-  templateId  String
-  status      VerificationStatus @default(PENDING_VERIFICATION)
-  notes       String?
+  id                 String                  @id @default(cuid())
+  projectId          String
+  templateId         String
+  status             VerificationStatus      @default(PENDING_VERIFICATION)
+  notes              String?
   evidenceDocumentId String?
-  reviewedBy  String?
-  reviewedAt  DateTime?
-  updatedAt   DateTime           @updatedAt
-  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  template    ComplianceCheckTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  evidence    ComplianceDocument? @relation(fields: [evidenceDocumentId], references: [id], onDelete: SetNull)
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  updatedAt          DateTime                @updatedAt
+  project            Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  template           ComplianceCheckTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  evidence           ComplianceDocument?     @relation(fields: [evidenceDocumentId], references: [id], onDelete: SetNull)
 
   @@unique([projectId, templateId])
 }
@@ -378,32 +381,32 @@ model ProjectComplianceItem {
 // ---------- Pricing ----------
 
 model PriceList {
-  id          String    @id @default(cuid())
-  name        String
-  currency    String    @default("INR")
-  validFrom   DateTime?
-  validTo     DateTime?
-  pricesIncludeGst Boolean @default(false)
-  active      Boolean   @default(true)
-  notes       String?
-  entries     PriceListEntry[]
+  id               String           @id @default(cuid())
+  name             String
+  currency         String           @default("INR")
+  validFrom        DateTime?
+  validTo          DateTime?
+  pricesIncludeGst Boolean          @default(false)
+  active           Boolean          @default(true)
+  notes            String?
+  entries          PriceListEntry[]
 }
 
 model PriceListEntry {
-  id          String     @id @default(cuid())
-  priceListId String
-  productId   String
-  supplierId  String?
-  unitPrice   Decimal    @db.Decimal(14, 2)
-  currency    String     @default("INR")
-  provenance  Provenance @default(SUPPLIER_QUOTED)
-  quoteRef    String?
-  validTo     DateTime?
+  id           String     @id @default(cuid())
+  priceListId  String
+  productId    String
+  supplierId   String?
+  unitPrice    Decimal    @db.Decimal(14, 2)
+  currency     String     @default("INR")
+  provenance   Provenance @default(SUPPLIER_QUOTED)
+  quoteRef     String?
+  validTo      DateTime?
   leadTimeDays Int?
-  updatedAt   DateTime   @updatedAt
-  priceList   PriceList  @relation(fields: [priceListId], references: [id], onDelete: Cascade)
-  product     Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
-  supplier    Supplier?  @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  updatedAt    DateTime   @updatedAt
+  priceList    PriceList  @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier     Supplier?  @relation(fields: [supplierId], references: [id], onDelete: SetNull)
 
   @@unique([priceListId, productId, supplierId])
 }
@@ -413,8 +416,8 @@ model InstallationService {
   code        String   @unique
   name        String
   description String?
-  unit        String   // lot, kWp, visit
-  basis       String   // FIXED | PER_KWP
+  unit        String // lot, kWp, visit
+  basis       String // FIXED | PER_KWP
   unitPrice   Decimal? @db.Decimal(14, 2) // null = to be quoted
   taxClassId  String?
   active      Boolean  @default(true)
@@ -424,36 +427,36 @@ model InstallationService {
 
 /// Configurable engineering parameter used by the calculation engine.
 model EngineRule {
-  id          String     @id @default(cuid())
-  key         String     @unique
-  label       String
-  group       String
-  valueNumber Decimal?   @db.Decimal(14, 4)
-  valueText   String?
-  unit        String?
-  description String
-  provenance  Provenance @default(ENGINEER_ENTERED)
-  isAssumption Boolean   @default(true) // must be confirmed per project by engineering
-  updatedAt   DateTime   @updatedAt
-  updatedBy   String?
+  id           String     @id @default(cuid())
+  key          String     @unique
+  label        String
+  group        String
+  valueNumber  Decimal?   @db.Decimal(14, 4)
+  valueText    String?
+  unit         String?
+  description  String
+  provenance   Provenance @default(ENGINEER_ENTERED)
+  isAssumption Boolean    @default(true) // must be confirmed per project by engineering
+  updatedAt    DateTime   @updatedAt
+  updatedBy    String?
 }
 
 // ---------- Projects & BOM ----------
 
 model Project {
-  id            String       @id @default(cuid())
-  reference     String       @unique
+  id            String                  @id @default(cuid())
+  reference     String                  @unique
   name          String
   location      String?
   customerType  CustomerType?
   customerName  String?
   customerEmail String?
   customerPhone String?
-  ownerToken    String?      // lets an anonymous creator return to their project
-  isSample      Boolean      @default(false)
+  ownerToken    String? // lets an anonymous creator return to their project
+  isSample      Boolean                 @default(false)
   createdById   String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
   designInputs  ProjectDesignInputs?
   boms          BOMHeader[]
   compliance    ProjectComplianceItem[]
@@ -464,154 +467,155 @@ model Project {
 
 /// Configurator inputs. Null = "To be confirmed during site survey".
 model ProjectDesignInputs {
-  id                 String   @id @default(cuid())
-  projectId          String   @unique
-  targetCapacityKwp  Decimal? @db.Decimal(10, 3)
-  roofType           RoofType?
-  roofAreaM2         Decimal? @db.Decimal(10, 2)
-  isExpansion        Boolean?
-  systemType         SystemType?
-  supplyPhase        SupplyPhase?
-  sanctionedLoad     Decimal? @db.Decimal(10, 2)
-  sanctionedLoadUnit String?  // kW | kVA
-  exportArrangement  ExportArrangement?
-  preferredModuleWp  Int?
+  id                     String             @id @default(cuid())
+  projectId              String             @unique
+  targetCapacityKwp      Decimal?           @db.Decimal(10, 3)
+  roofType               RoofType?
+  roofAreaM2             Decimal?           @db.Decimal(10, 2)
+  isExpansion            Boolean?
+  systemType             SystemType?
+  supplyPhase            SupplyPhase?
+  sanctionedLoad         Decimal?           @db.Decimal(10, 2)
+  sanctionedLoadUnit     String? // kW | kVA
+  exportArrangement      ExportArrangement?
+  preferredModuleWp      Int?
   preferredModuleMfrId   String?
   preferredInverterMfrId String?
-  mountingMaterial   String?
+  mountingMaterial       String?
   preferredConfiguration String?
-  budgetRange        String?
-  monitoring         String?
-  selectedModuleId   String?
-  selectedInverterId String?
-  selectedStructureId String?
+  budgetRange            String?
+  monitoring             String?
+  selectedModuleId       String?
+  selectedInverterId     String?
+  selectedStructureId    String?
   /// Engineering / site inputs (all optional, provenance tracked in `inputMeta`).
-  engineering        Json?
-  inputMeta          Json?    // { fieldKey: { provenance, note } }
-  updatedAt          DateTime @updatedAt
-  project            Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  engineering            Json?
+  inputMeta              Json? // { fieldKey: { provenance, note } }
+  updatedAt              DateTime           @updatedAt
+  project                Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 model BOMHeader {
-  id              String   @id @default(cuid())
-  projectId       String
-  title           String
-  currentRevision Int      @default(0)
-  status          BomRevisionStatus @default(DRAFT)
-  pricesIncludeGst Boolean @default(false)
-  assignedToId    String?
-  calcSnapshot    Json?    // last engine result (summary, checks, assumptions)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignedTo      User?    @relation("BomAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  items           BOMItem[]
-  revisions       BOMRevision[]
-  costItems       ProjectCostItem[]
-  quotations      Quotation[]
+  id               String            @id @default(cuid())
+  projectId        String
+  title            String
+  currentRevision  Int               @default(0)
+  status           BomRevisionStatus @default(DRAFT)
+  pricesIncludeGst Boolean           @default(false)
+  assignedToId     String?
+  calcSnapshot     Json? // last engine result (summary, checks, assumptions)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignedTo       User?             @relation("BomAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  items            BOMItem[]
+  revisions        BOMRevision[]
+  costItems        ProjectCostItem[]
+  quotations       Quotation[]
 }
 
 model BOMItem {
-  id                String         @id @default(cuid())
-  bomId             String
-  section           String
-  lineNo            Int
-  itemCode          String
-  name              String
-  specification     String?
-  unit              String
-  calculatedQty     Decimal?       @db.Decimal(14, 3)
-  procurementQty    Decimal?       @db.Decimal(14, 3)
-  quantityStatus    QuantityStatus @default(CALCULATED)
-  quantityBasis     String?        // formula / assumption used
-  productId         String?
-  manufacturer      String?
-  model             String?
-  unitPrice         Decimal?       @db.Decimal(14, 2)
-  priceProvenance   Provenance?
-  gstRatePercent    Decimal?       @db.Decimal(6, 3)
-  taxClassCode      String?
-  complianceReq     String?
-  technicalNotes    String?
-  supplierRemarks   String?
-  supplierName      String?
-  availability      AvailabilityStatus @default(UNKNOWN)
-  complianceStatus  VerificationStatus @default(PENDING_VERIFICATION)
-  ruleKey           String?        // engine rule that generated this line
-  isManual          Boolean        @default(false)
-  removed           Boolean        @default(false)
-  updatedAt         DateTime       @updatedAt
-  bom               BOMHeader      @relation(fields: [bomId], references: [id], onDelete: Cascade)
-  product           Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+  id               String             @id @default(cuid())
+  bomId            String
+  section          String
+  lineNo           Int
+  itemCode         String
+  name             String
+  specification    String?
+  unit             String
+  calculatedQty    Decimal?           @db.Decimal(14, 3)
+  procurementQty   Decimal?           @db.Decimal(14, 3)
+  quantityStatus   QuantityStatus     @default(CALCULATED)
+  quantityBasis    String? // formula / assumption used
+  productId        String?
+  manufacturer     String?
+  model            String?
+  unitPrice        Decimal?           @db.Decimal(14, 2)
+  priceProvenance  Provenance?
+  gstRatePercent   Decimal?           @db.Decimal(6, 3)
+  taxClassCode     String?
+  complianceReq    String?
+  technicalNotes   String?
+  supplierRemarks  String?
+  supplierName     String?
+  availability     AvailabilityStatus @default(UNKNOWN)
+  complianceStatus VerificationStatus @default(PENDING_VERIFICATION)
+  ruleKey          String? // engine rule that generated this line
+  isManual         Boolean            @default(false)
+  removed          Boolean            @default(false)
+  updatedAt        DateTime           @updatedAt
+  bom              BOMHeader          @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  product          Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([bomId])
 }
 
 model BOMRevision {
-  id            String            @id @default(cuid())
-  bomId         String
-  revisionNo    Int
-  status        BomRevisionStatus @default(DRAFT)
-  summary       String
-  snapshot      Json
-  createdBy     String?
-  createdAt     DateTime          @default(now())
-  reviewedBy    String?
-  reviewedAt    DateTime?
-  reviewNotes   String?
-  bom           BOMHeader         @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  id          String            @id @default(cuid())
+  bomId       String
+  revisionNo  Int
+  status      BomRevisionStatus @default(DRAFT)
+  summary     String
+  snapshot    Json
+  createdBy   String?
+  createdAt   DateTime          @default(now())
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  reviewNotes String?
+  bom         BOMHeader         @relation(fields: [bomId], references: [id], onDelete: Cascade)
 
   @@unique([bomId, revisionNo])
 }
 
 /// Transport, logistics and other configured project costs.
 model ProjectCostItem {
-  id          String   @id @default(cuid())
-  bomId       String
-  label       String
-  amount      Decimal? @db.Decimal(14, 2)
-  gstRatePercent Decimal? @db.Decimal(6, 3)
-  notes       String?
-  bom         BOMHeader @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  id             String    @id @default(cuid())
+  bomId          String
+  label          String
+  amount         Decimal?  @db.Decimal(14, 2)
+  gstRatePercent Decimal?  @db.Decimal(6, 3)
+  notes          String?
+  bom            BOMHeader @relation(fields: [bomId], references: [id], onDelete: Cascade)
 }
 
 model Quotation {
-  id          String          @id @default(cuid())
-  number      String          @unique
-  projectId   String
-  bomId       String
-  revisionNo  Int
-  status      QuotationStatus @default(DRAFT)
-  validUntil  DateTime?
-  totals      Json
-  terms       String?
-  contactName String?
-  contactEmail String?
-  message     String?
-  pdfStorageKey String?
-  createdBy   String?
-  createdAt   DateTime        @default(now())
-  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  bom         BOMHeader       @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  id            String          @id @default(cuid())
+  number        String          @unique
+  projectId     String
+  bomId         String
+  revisionNo    Int
+  status        QuotationStatus @default(DRAFT)
+  validUntil    DateTime?
+  totals        Json
+  terms         String?
+  contactName   String?
+  contactEmail  String?
+  message       String?
+  pdfStorageKey String? // quotations issued before PDFs were built in the browser
+  snapshot      Json? // export data at issue time; the browser builds the PDF from it
+  createdBy     String?
+  createdAt     DateTime        @default(now())
+  project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bom           BOMHeader       @relation(fields: [bomId], references: [id], onDelete: Cascade)
 }
 
 model Enquiry {
-  id          String        @id @default(cuid())
-  name        String
-  email       String
-  phone       String?
-  company     String?
+  id           String        @id @default(cuid())
+  name         String
+  email        String
+  phone        String?
+  company      String?
   customerType CustomerType?
-  location    String?
-  capacityKwp Decimal?      @db.Decimal(10, 2)
-  message     String
-  source      String        @default("website") // website | quote-request | product-quote
-  productSku  String?
-  projectId   String?
-  status      EnquiryStatus @default(NEW)
-  assignedTo  String?
-  createdAt   DateTime      @default(now())
-  project     Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  location     String?
+  capacityKwp  Decimal?      @db.Decimal(10, 2)
+  message      String
+  source       String        @default("website") // website | quote-request | product-quote
+  productSku   String?
+  projectId    String?
+  status       EnquiryStatus @default(NEW)
+  assignedTo   String?
+  createdAt    DateTime      @default(now())
+  project      Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
 }
 
 model AuditLog {
@@ -624,7 +628,7 @@ model AuditLog {
   newValue   String?
   reason     String?
   userId     String?
-  actorLabel String?  // "Customer (anonymous)" etc. when no user
+  actorLabel String? // "Customer (anonymous)" etc. when no user
   createdAt  DateTime @default(now())
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 

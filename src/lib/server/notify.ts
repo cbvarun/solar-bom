@@ -9,7 +9,7 @@ export interface DeliveryResult {
   message: string;
 }
 
-export async function notifySales(_msg: { subject: string; text: string; attachments?: { filename: string; content: Buffer }[] }): Promise<DeliveryResult> {
+export async function notifySales(_msg: { subject: string; text: string; attachments?: { filename: string; content: Uint8Array }[] }): Promise<DeliveryResult> {
   if (!process.env.SMTP_URL) {
     return {
       emailed: false,

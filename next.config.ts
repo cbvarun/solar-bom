@@ -1,9 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // pdfkit reads its font metrics from disk; keep it out of the bundle.
-  serverExternalPackages: ["pdfkit", "exceljs"],
+  // Left to the runtime bundler so each target picks its own build: on
+  // Cloudflare the Prisma client resolves to its WebAssembly (workerd) variant.
+  serverExternalPackages: ["exceljs", "@prisma/client", ".prisma/client", "@prisma/adapter-pg", "pg"],
   poweredByHeader: false,
+  webpack(config, { isServer }) {
+    // PDFs are built in the browser only. Keep the 2.5 MB pdfkit bundle out of
+    // the server build, where the client export code is also compiled for SSR.
+    if (isServer) config.resolve.alias = { ...config.resolve.alias, "pdfkit/js/pdfkit.standalone": false };
+    return config;
+  },
   async headers() {
     return [
       {

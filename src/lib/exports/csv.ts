@@ -1,15 +1,17 @@
 import Papa from "papaparse";
-import type { ExportData } from "./data";
+import { sectionLabel } from "@/lib/engine";
+import type { ExportPayload } from "./payload";
 
 /** Flat, procurement-ready BOM: one row per active line, stable column names for ERP import. */
-export function bomCsv(d: ExportData): string {
+export function bomCsv(d: ExportPayload): string {
+  const priced = new Map(d.pricing.lines.map((l) => [l.id, l]));
   const rows = d.items.map((i, n) => {
-    const p = d.priced.get(i.id);
+    const p = priced.get(i.id);
     return {
       project_reference: d.project.reference,
       bom_revision: d.bom.currentRevision,
       line_no: n + 1,
-      section: d.sectionLabel(i.section),
+      section: sectionLabel(i.section),
       item_code: i.itemCode,
       description: i.name,
       specification: i.specification ?? "",

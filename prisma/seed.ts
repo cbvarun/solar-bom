@@ -5,11 +5,12 @@
  * warranties or stock levels are asserted. Replace with verified
  * manufacturer data before use.
  */
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { RULE_DEFINITIONS } from "../src/lib/engine/rules";
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
 
 const CATEGORIES = [
   ["pv-modules", "Solar PV modules", "PV_MODULES"],
