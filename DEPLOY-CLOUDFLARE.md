@@ -55,6 +55,10 @@ npm run cf:deploy
 
 This builds the app with OpenNext and uploads it. The app is served at `https://solar-bom.<your-subdomain>.workers.dev`. To use your own domain, add it under Workers → solar-bom → Settings → Domains & Routes.
 
+### Deploying from GitHub instead
+
+In the dashboard, choose **Workers & Pages → Create → Import a repository** (the Workers option, not Pages) and pick this repository. Set the build command to `npx opennextjs-cloudflare build` and the deploy command to `npx opennextjs-cloudflare deploy`. Add the `NEXT_PUBLIC_COMPANY_*` values as build variables and `SESSION_SECRET` as a secret under the Worker's Settings → Variables and Secrets. Every push to `main` then deploys. `npm install` runs `prisma generate`, so the build has the database client.
+
 ## Testing locally in the Workers runtime
 
 ```bash

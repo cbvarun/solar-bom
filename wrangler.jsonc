@@ -13,7 +13,7 @@
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
-      "id": "REPLACE_WITH_HYPERDRIVE_ID",
+      "id": "3c27bd5e8bc1469a86575a895c26b8bd",
       "localConnectionString": "postgresql://solar:solar@localhost:5432/solarbom"
     }
   ],
