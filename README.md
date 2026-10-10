@@ -20,6 +20,14 @@ Stack: Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS · Post
 
 ## Setup
 
+You need Node.js 20 or later and a PostgreSQL 14+ database. The quickest local database is Docker:
+
+```bash
+docker compose up -d              # Postgres 16 on localhost:5432 (user/password solar/solar, database solarbom)
+```
+
+Without Docker, install PostgreSQL directly or use a hosted one (Neon, Supabase, RDS) and put its connection string in `DATABASE_URL`.
+
 ```bash
 cp .env.example .env              # fill DATABASE_URL, SESSION_SECRET (32+ chars), SEED_DEMO_PASSWORD
 npm install
