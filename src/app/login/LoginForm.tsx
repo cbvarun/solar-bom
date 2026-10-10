@@ -9,10 +9,19 @@ export function LoginForm({ next }: { next: string }) {
     setBusy(true);
     setError(null);
     const fd = new FormData(e.currentTarget);
-    const res = await fetch("/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: fd.get("email"), password: fd.get("password") }) });
-    setBusy(false);
-    if (res.ok) window.location.href = next;
-    else setError((await res.json()).error ?? "Sign-in failed");
+    try {
+      const res = await fetch("/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: fd.get("email"), password: fd.get("password") }) });
+      if (res.ok) {
+        window.location.href = next;
+        return;
+      }
+      const body = await res.json().catch(() => null);
+      setError(body?.error ?? `Sign-in failed (server returned ${res.status}).`);
+    } catch {
+      setError("Could not reach the server. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <form onSubmit={submit} className="mt-5 space-y-4" noValidate>

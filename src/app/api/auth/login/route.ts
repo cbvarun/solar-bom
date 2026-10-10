@@ -10,7 +10,31 @@ const schema = z.object({ email: z.string().email(), password: z.string().min(1)
 // Simple in-memory throttle per email (sufficient for a single instance; use a shared store in production).
 const attempts = new Map<string, { n: number; until: number }>();
 
+/**
+ * Setup problems (missing secret, unreachable or unmigrated database) are
+ * reported by kind so they can be fixed without reading server logs. No
+ * secret values or connection details are included.
+ */
+function setupError(e: unknown) {
+  console.error("login failed", e);
+  const msg = e instanceof Error ? e.message : String(e);
+  const code = (e as { code?: unknown })?.code;
+  let error = "Sign-in failed because of a server error. Check the Worker logs.";
+  if (msg.includes("SESSION_SECRET")) error = "Server setup: SESSION_SECRET is not set (32+ characters). Add it as a secret on the Worker and redeploy.";
+  else if (code === "P2021" || code === "P2022" || /does not exist/i.test(msg)) error = "Server setup: the database tables are missing. Run the migrations and seed against this database.";
+  else if ((typeof code === "string" && code.startsWith("P1")) || /connect|ECONN|timeout|hyperdrive/i.test(msg)) error = "Server setup: the database could not be reached. Check the Hyperdrive connection.";
+  return NextResponse.json({ error }, { status: 500 });
+}
+
 export async function POST(req: Request) {
+  try {
+    return await login(req);
+  } catch (e) {
+    return setupError(e);
+  }
+}
+
+async function login(req: Request) {
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Enter your email and password." }, { status: 422 });
   const email = parsed.data.email.toLowerCase();
