@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "solar-bom",
+  "main": ".open-next/worker.js",
+  "minify": true,
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "solar-bom" }],
+  // Postgres (e.g. Neon) through Hyperdrive. Create it with:
+  //   npx wrangler hyperdrive create solar-bom-db --connection-string="postgres://..."
+  // and paste the returned id here. localConnectionString is used by `wrangler dev`.
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "REPLACE_WITH_HYPERDRIVE_ID",
+      "localConnectionString": "postgresql://solar:solar@localhost:5432/solarbom"
+    }
+  ],
+  // Private uploads and generated quotation PDFs. Create with:
+  //   npx wrangler r2 bucket create solar-bom-files
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "solar-bom-files" }],
+  "observability": { "enabled": true }
+}

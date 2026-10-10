@@ -14,7 +14,7 @@ Stack: Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS · Post
 | Compliance sources (BIS, MNRE ALMM, CEA, BESCOM, KERC, IS/IEC) | **Pending verification.** Each record links to the authority's homepage. An engineer must confirm the current revision against the official publication and record it before marking a source verified. |
 | Sample project "Bengaluru Commercial Rooftop Solar" | Illustrative. It is read-only to visitors (duplicate it to edit). It has **not** been submitted to BESCOM and holds no approvals. Every checklist item is pending. |
 | Email to sales | **Not implemented.** Quote requests and enquiries are stored and appear under Admin → Enquiries & quotes. The UI says plainly that no email was sent. To add email, implement `src/lib/server/notify.ts` against `SMTP_URL`. |
-| File storage | Local disk under `STORAGE_DIR`, outside `/public`, served only through `/api/documents/[id]` and `/api/quotations/[id]/pdf`. For production, swap `src/lib/server/storage.ts` for S3/GCS. |
+| File storage | An R2 bucket on Cloudflare, or local disk under `STORAGE_DIR` on Node. Files are kept outside `/public` and served only through `/api/documents/[id]` and `/api/quotations/[id]/pdf`. |
 | Company details | Taken from `NEXT_PUBLIC_COMPANY_*`. When unset, pages and PDFs show "not configured" rather than invented details. |
 | Generation, savings and payback | Shown only when an engineer enters a verified specific yield with its source. They are always labelled as estimates, never guarantees. |
 
@@ -35,6 +35,8 @@ npm run db:deploy                 # apply migrations
 npm run db:seed                   # catalogue templates, rules, compliance library, staff, sample project
 npm run dev                       # http://localhost:3000
 ```
+
+To deploy to Cloudflare Workers, see [DEPLOY-CLOUDFLARE.md](DEPLOY-CLOUDFLARE.md).
 
 Checks: `npm run typecheck`, `npm test` (calculation engine), `npm run lint`, `npm run build`.
 

@@ -2,7 +2,10 @@
 // Technical values carry units, tolerances, provenance and verification dates.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  // Rust-free client over the node-postgres driver: the same code runs on
+  // Node and on Cloudflare Workers (through Hyperdrive).
+  previewFeatures = ["queryCompiler", "driverAdapters"]
 }
 
 datasource db {

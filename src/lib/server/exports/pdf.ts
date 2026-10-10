@@ -1,12 +1,10 @@
 import PDFDocument from "pdfkit";
-import path from "node:path";
+import { publicFile } from "../runtime";
 import { prisma } from "@/lib/db";
 import { QUANTITY_STATUS_LABEL, VERIFICATION_LABEL } from "@/lib/format";
 import { formatSpecValue } from "../catalogue";
 import { STANDARD_EXCLUSIONS, STANDARD_TERMS, type ExportData } from "./data";
 
-const FONT = path.join(process.cwd(), "assets/fonts/DejaVuSans.ttf");
-const FONT_B = path.join(process.cwd(), "assets/fonts/DejaVuSans-Bold.ttf");
 const GREEN = "#163527";
 const MUTED = "#5b6660";
 const LINE = "#d6dcd9";
@@ -19,7 +17,9 @@ const qty = (v: number | null | undefined) => (v == null ? "TBC" : v.toLocaleStr
 interface Col { header: string; width: number; align?: "left" | "right"; get: (row: number) => string }
 
 export async function bomPdf(d: ExportData, opts: { quotationNumber?: string; validUntil?: Date } = {}): Promise<Buffer> {
-  const doc = new PDFDocument({ size: "A4", margins: { top: 50, bottom: 50, left: 40, right: 40 }, bufferPages: true, info: { Title: `${d.project.reference} BOM`, Author: d.company.name } });
+  const [FONT, FONT_B] = await Promise.all([publicFile("fonts/DejaVuSans.ttf"), publicFile("fonts/DejaVuSans-Bold.ttf")]);
+  // Pass a font up front so pdfkit never loads its built-in Helvetica metrics from disk.
+  const doc = new PDFDocument({ font: FONT as unknown as string, size: "A4", margins: { top: 50, bottom: 50, left: 40, right: 40 }, bufferPages: true, info: { Title: `${d.project.reference} BOM`, Author: d.company.name } });
   doc.registerFont("R", FONT);
   doc.registerFont("B", FONT_B);
   const chunks: Buffer[] = [];

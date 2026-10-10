@@ -1,8 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // pdfkit reads its font metrics from disk; keep it out of the bundle.
-  serverExternalPackages: ["pdfkit", "exceljs"],
+  // Left to the runtime bundler so each target picks its own build: on
+  // Cloudflare the Prisma client resolves to its WebAssembly (workerd) variant.
+  serverExternalPackages: ["pdfkit", "exceljs", "@prisma/client", ".prisma/client", "@prisma/adapter-pg", "pg"],
   poweredByHeader: false,
   async headers() {
     return [
