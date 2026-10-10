@@ -588,6 +588,8 @@ model Quotation {
   contactName String?
   contactEmail String?
   message     String?
+  pdfStorageKey String?
+  createdBy   String?
   createdAt   DateTime        @default(now())
   project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   bom         BOMHeader       @relation(fields: [bomId], references: [id], onDelete: Cascade)

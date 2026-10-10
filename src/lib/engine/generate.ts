@@ -2,7 +2,7 @@ import { procurementLength, sizeCable } from "./cables";
 import { selectInverter, evaluateInverter } from "./inverter";
 import { buildRows, mountingQuantities } from "./mounting";
 import { installedCapacityW, moduleAreaM2, moduleCount, round } from "./pv";
-import { rule, ruleLabel } from "./rules";
+import { RULE_DEFINITIONS, rule, ruleLabel } from "./rules";
 import type {
   Assumption,
   BomLineDraft,
@@ -504,7 +504,8 @@ export function generateBom(input: ProjectInputs, catalogue: EngineCatalogue, ru
     const v = rule(rules, key);
     if (v == null) continue;
     if (assumptions.some((a) => a.key === `rule.${key}`)) continue;
-    assumptions.push({ key: `rule.${key}`, label: ruleLabel(key), value: String(v), source: "Configured engineering rule" });
+    const unit = RULE_DEFINITIONS.find((r) => r.key === key)?.unit;
+    assumptions.push({ key: `rule.${key}`, label: ruleLabel(key), value: unit && !unit.includes("/") ? `${v} ${unit}` : String(v), source: "Configured engineering rule" });
   }
 
   outstanding.push("Electrical design approval (protective-device ratings, cable sizing, string plan).");
