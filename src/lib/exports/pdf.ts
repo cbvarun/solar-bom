@@ -3,6 +3,7 @@ import PDFDocument from "pdfkit/js/pdfkit.standalone";
 import { sectionLabel } from "@/lib/engine";
 import { QUANTITY_STATUS_LABEL, VERIFICATION_LABEL } from "@/lib/format";
 import { STANDARD_EXCLUSIONS, STANDARD_TERMS, type ExportPayload } from "./payload";
+import { ESTIMATE_DISCLAIMER } from "@/lib/energy-summary";
 
 const GREEN = "#163527";
 const MUTED = "#5b6660";
@@ -11,6 +12,8 @@ const LINE = "#d6dcd9";
 // DejaVu has no ₹ glyph; print the ISO code instead.
 const inr = (v: number | null | undefined) => (v == null ? "—" : `INR ${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const amt = (v: number | null | undefined) => (v == null ? "—" : v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+// Same for text built elsewhere with ₹.
+const noRupee = (t: string) => t.replace(/₹\s?/g, "INR ");
 const qty = (v: number | null | undefined) => (v == null ? "TBC" : v.toLocaleString("en-IN", { maximumFractionDigits: 3 }));
 
 interface Col { header: string; width: number; align?: "left" | "right"; get: (row: number) => string }
@@ -112,7 +115,7 @@ export async function bomPdf(d: ExportPayload, opts: { quotationNumber?: string;
     ["Installed DC capacity", s?.installedDcW != null ? `${s.installedDcW / 1000} kWp (${s.moduleCount} × ${s.moduleWp} Wp${s.formulaModuleCount !== s.moduleCount ? `; formula gives ${s.formulaModuleCount}` : ""})` : "—"],
     ["Inverter", s?.selectedInverter ? `${s.selectedInverter} — ${s.inverterAcW! / 1000} kW AC, DC/AC ${s.dcAcRatio}` : "No compatible inverter selected"],
     ["String plan", s?.stringLayout ? `${s.stringLayout.modulesPerString.join(" + ")} modules; Voc at design min. temp. ${s.stringLayout.vocAtMinTempV} V` : "—"],
-    ["Estimated annual generation", s?.annualGeneration ? `${s.annualGeneration.kwh.toLocaleString("en-IN")} kWh/yr — indicative, not guaranteed (${s.annualGeneration.basis})` : "Not estimated: requires an engineer-verified specific yield"],
+    ...(d.energy ? [] : [["Estimated annual generation", s?.annualGeneration ? `${s.annualGeneration.kwh.toLocaleString("en-IN")} kWh/yr — indicative, not guaranteed (${s.annualGeneration.basis})` : "Not estimated: requires an engineer-verified specific yield"]] as [string, string][]),
   ]);
   doc.moveDown(0.4);
   const assumptions = d.calc?.assumptions ?? [];
@@ -124,6 +127,33 @@ export async function bomPdf(d: ExportPayload, opts: { quotationNumber?: string;
   if (d.calc?.checks.some((c) => c.severity === "error")) {
     doc.moveDown(0.4);
     para("Configuration issues: " + d.calc.checks.filter((c) => c.severity === "error").map((c) => c.message).join(" "), 8.5, "#b91c1c");
+  }
+
+  // ---------- Generation, subsidy and savings ----------
+  const e = d.energy;
+  if (e) {
+    h1("Estimated generation, subsidy and savings");
+    para(ESTIMATE_DISCLAIMER, 8, "#8a630d");
+    doc.moveDown(0.3);
+    const sv = e.savings;
+    kv([
+      ["Estimated annual generation", e.generation ? `${e.generation.annualKwh.toLocaleString("en-IN")} kWh/yr (${e.generation.specificYieldKwhPerKwpYr} kWh/kWp/yr; ${e.generation.source})` : `Not estimated. ${e.generationNote ?? ""}`],
+      ["Tariff used", e.tariff ? `INR ${e.tariff.inrPerKwh}/kWh${e.tariff.source ? ` (${e.tariff.source})` : ""}` : "Not entered"],
+      ["System price (incl. GST)", e.grossCostInr != null ? inr(e.grossCostInr) : "Pricing incomplete"],
+      ["Estimated subsidy", e.subsidy?.amountInr != null ? `${inr(e.subsidy.amountInr)}. ${noRupee(e.subsidy.basis)}${e.subsidy.verified ? "" : " Pending verification against the official notification."}` : e.subsidy ? noRupee(e.subsidy.basis) : "None applied"],
+      ["Net price after subsidy", inr(e.netCostInr)],
+      ["First-year bill savings", sv ? inr(sv.year1SavingsInr) : e.savingsNote ?? "—"],
+      ["Simple payback", sv?.simplePaybackYears != null ? `${sv.simplePaybackYears} years` : "—"],
+      ...(sv?.totalSavingsInr != null ? [[`Savings over ${sv.projection!.length} years`, inr(sv.totalSavingsInr)]] as [string, string][] : []),
+    ], 170);
+    const m = e.generation?.monthlyKwh;
+    if (m) {
+      doc.moveDown(0.4);
+      const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      table(MONTHS.map((mo, i) => ({ header: mo, width: W / 12, align: "right" as const, get: () => m[i].toLocaleString("en-IN") })), 1, { size: 7 });
+      para("Estimated monthly generation, kWh.", 7.5, MUTED);
+    }
+    if (sv) { doc.moveDown(0.3); for (const a of sv.assumptions) { ensure(12); para(`•  ${noRupee(a)}`, 8, MUTED); } }
   }
 
   // ---------- BOM ----------

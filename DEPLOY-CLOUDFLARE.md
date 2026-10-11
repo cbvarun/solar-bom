@@ -27,7 +27,7 @@ Cloudflare has no hosted PostgreSQL, and D1 (SQLite) cannot run this schema, so 
    npm run db:seed
    ```
 
-   Run these two commands again whenever a later version adds migrations. Change or deactivate the demo accounts (Admin → Users) before real use.
+   Run `npm run db:deploy` again whenever a later version adds migrations (new folders under `prisma/migrations/`), **before** that version goes live; otherwise pages that use the new tables return errors. `db:seed` is only needed once. Change or deactivate the demo accounts (Admin → Users) before real use.
 
 ## 2. Cloudflare resources
 

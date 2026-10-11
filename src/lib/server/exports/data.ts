@@ -6,6 +6,7 @@ import type { ExportPayload } from "@/lib/exports/payload";
 import { bomPricing, engineSnapshot, loadBom } from "../bom";
 import { serializeItems } from "../serialize";
 import { formatSpecValue } from "../catalogue";
+import { energySummary } from "../site";
 import { CUSTOMER_TYPE_LABEL, EXPORT_LABEL, PHASE_LABEL, ROOF_LABEL, SYSTEM_LABEL, TBC } from "@/lib/format";
 
 const n = (v: unknown) => (v == null ? null : Number(v));
@@ -23,11 +24,13 @@ export async function buildExportPayload(projectId: string): Promise<ExportPaylo
   const items = serializeItems(bom).filter((i) => !i.removed);
   const productIds = items.map((i) => i.productId).filter(Boolean) as string[];
   const majorIds = [...new Set(items.filter((i) => ["PV_MODULES", "INVERTER", "MOUNTING"].includes(i.section) && i.productId).map((i) => i.productId!))].slice(0, 4);
-  const [compliance, priceEntries, validityRule, majors] = await Promise.all([
+  const [compliance, priceEntries, validityRule, majors, energy] = await Promise.all([
     prisma.projectComplianceItem.findMany({ where: { projectId }, include: { template: { include: { standard: true } } }, orderBy: { template: { sortOrder: "asc" } } }),
     prisma.priceListEntry.findMany({ where: { productId: { in: productIds }, priceList: { active: true } }, include: { supplier: true } }),
     prisma.engineRule.findUnique({ where: { key: "quotation_validity_days" } }),
     prisma.product.findMany({ where: { id: { in: majorIds } }, include: { specifications: { orderBy: { sortOrder: "asc" } } } }),
+    // Estimates are optional in exports; a failure here must not block the BOM.
+    energySummary(prisma, projectId).catch((e) => { console.error("energy summary failed", e); return null; }),
   ]);
   const d = project.designInputs;
   const v = (x: unknown, map?: Record<string, string>) => (x == null || x === "" ? TBC : map ? map[String(x)] ?? String(x) : String(x));
@@ -64,6 +67,7 @@ export async function buildExportPayload(projectId: string): Promise<ExportPaylo
         specs: m.specifications.filter((x) => x.key !== "bom_role").slice(0, 14).map((s) => ({ label: s.label, value: formatSpecValue(s), provenance: s.provenance.replace(/_/g, " ").toLowerCase() })),
       }];
     }),
+    energy,
     validityDays: validityRule?.valueNumber != null ? Number(validityRule.valueNumber) : 15,
     generatedAt: new Date().toISOString(),
   };

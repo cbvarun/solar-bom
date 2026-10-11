@@ -9,6 +9,7 @@ import { guarded, type ActionResult } from "@/lib/server/admin-guard";
 import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES, saveFile, sniffType } from "@/lib/server/storage";
 import { importProducts } from "@/lib/server/import";
 import { LOCKED_COMPAT_RULES } from "@/lib/engine/rules";
+import { isLegacyStatus, parseFollowUp } from "@/lib/crm";
 
 // ---------- helpers ----------
 const s = (max = 300) => z.preprocess((v) => (v === "" || v == null ? null : String(v).trim()), z.string().max(max).nullable());
@@ -352,13 +353,41 @@ export async function refreshChecklist(_p: ActionResult | null, fd: FormData): P
 
 // ---------- Enquiries, projects ----------
 export async function updateEnquiry(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
-  return guarded("enquiries.manage", async (actor) => {
-    const d = z.object({ id: req("id"), status: z.enum(["NEW", "IN_PROGRESS", "CLOSED"]), assignedTo: s(64) }).parse(form(fd));
+  return guarded("enquiries.manage", async (actor): Promise<ActionResult> => {
+    const d = z.object({
+      id: req("id"),
+      status: z.enum(["NEW", "CONTACTED", "SITE_VISIT", "PROPOSAL_SENT", "WON", "LOST", "IN_PROGRESS", "CLOSED"]),
+      assignedTo: s(64), nextFollowUpAt: s(10), lostReason: s(500),
+    }).parse(form(fd));
     const before = await prisma.enquiry.findUniqueOrThrow({ where: { id: d.id } });
-    await prisma.enquiry.update({ where: { id: d.id }, data: { status: d.status, assignedTo: d.assignedTo } });
-    await diffAudit(prisma as unknown as Prisma.TransactionClient, actor, "Enquiry", d.id, before as unknown as Record<string, unknown>, { status: d.status, assignedTo: d.assignedTo });
+    if (isLegacyStatus(d.status) && d.status !== before.status) return { ok: false, message: "That status is no longer used. Choose a pipeline stage.", errors: { status: "Choose a pipeline stage" } };
+    if (d.status === "LOST" && !d.lostReason) return { ok: false, message: "Record why the enquiry was lost.", errors: { lostReason: "Required when status is Lost" } };
+    const nextFollowUpAt = parseFollowUp(d.nextFollowUpAt);
+    if (nextFollowUpAt === undefined) return { ok: false, message: "Follow-up date is not a valid date.", errors: { nextFollowUpAt: "Use YYYY-MM-DD" } };
+    if (d.assignedTo && !(await prisma.user.findFirst({ where: { id: d.assignedTo, active: true }, select: { id: true } }))) return { ok: false, message: "Owner must be an active staff member.", errors: { assignedTo: "Unknown user" } };
+    const data = { status: d.status, assignedTo: d.assignedTo, nextFollowUpAt, lostReason: d.status === "LOST" ? d.lostReason : null };
+    await prisma.$transaction(async (tx) => {
+      await tx.enquiry.update({ where: { id: d.id }, data });
+      await diffAudit(tx, actor, "Enquiry", d.id, before as unknown as Record<string, unknown>, data);
+    });
     revalidatePath("/admin/enquiries");
+    revalidatePath(`/admin/enquiries/${d.id}`);
+    revalidatePath("/admin");
     return { ok: true, message: "Enquiry updated." };
+  });
+}
+
+export async function addEnquiryNote(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return guarded("enquiries.manage", async (actor) => {
+    const d = z.object({ enquiryId: req("Enquiry", 64), body: req("Note", 4000) }).parse(form(fd));
+    await prisma.$transaction(async (tx) => {
+      await tx.enquiry.findUniqueOrThrow({ where: { id: d.enquiryId }, select: { id: true } });
+      const note = await tx.enquiryNote.create({ data: { enquiryId: d.enquiryId, body: d.body, author: actor.label } });
+      await audit(tx, actor, { entityType: "Enquiry", entityId: d.enquiryId, action: "note", field: "notes", newValue: note.body.length > 200 ? `${note.body.slice(0, 200)}…` : note.body });
+    });
+    revalidatePath("/admin/enquiries");
+    revalidatePath(`/admin/enquiries/${d.enquiryId}`);
+    return { ok: true, message: "Note added." };
   });
 }
 

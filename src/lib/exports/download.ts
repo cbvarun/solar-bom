@@ -41,3 +41,9 @@ export async function downloadQuotationPdf(quotationId: string) {
   const s = await getJson<QuotationSnapshot>(`/api/quotations/${quotationId}/snapshot`);
   save(await build("pdf", s.payload, { quotationNumber: s.quotationNumber, validUntil: s.validUntil }), `${s.quotationNumber}.pdf`);
 }
+
+/** Public web proposal: same PDF, fetched by share token instead of login. */
+export async function downloadProposalPdf(token: string) {
+  const s = await getJson<QuotationSnapshot>(`/api/proposal/${encodeURIComponent(token)}/snapshot`);
+  save(await build("pdf", s.payload, { quotationNumber: s.quotationNumber, validUntil: s.validUntil }), `${s.quotationNumber}.pdf`);
+}

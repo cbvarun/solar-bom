@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { loadProjectOr404 } from "@/lib/server/access";
 import { bomPricing, engineSnapshot, loadBom } from "@/lib/server/bom";
 import { sectionLabel } from "@/lib/engine";
+import { energySummary } from "@/lib/server/site";
 import { HBarChart } from "@/components/project/SummaryCharts";
 import { Alert, PreliminaryNotice } from "@/components/ui/Alert";
 import { Badge, VerificationBadge } from "@/components/ui/Badge";
@@ -15,6 +16,7 @@ export default async function ProjectSummary({ params }: { params: Promise<{ id:
   const bom = await loadBom(prisma, id);
   const calc = bom ? engineSnapshot(bom) : null;
   const pricing = bom ? bomPricing(bom) : null;
+  const energy = await energySummary(prisma, id);
   const compliance = await prisma.projectComplianceItem.groupBy({ by: ["status"], where: { projectId: id }, _count: true });
   const s = calc?.summary;
   const d = project.designInputs;
@@ -86,15 +88,17 @@ export default async function ProjectSummary({ params }: { params: Promise<{ id:
         </section>
         <section className="card p-5">
           <h2 className="section-title">Estimated annual generation</h2>
-          {s?.annualGeneration ? (
+          {energy.generation ? (
             <>
-              <p className="mt-2 text-2xl font-semibold tabular-nums">{s.annualGeneration.kwh.toLocaleString("en-IN")} kWh/yr</p>
-              <p className="mt-1 text-xs text-ink-muted">{s.annualGeneration.basis}</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums">{energy.generation.annualKwh.toLocaleString("en-IN")} kWh/yr</p>
+              <p className="mt-1 text-xs text-ink-muted">{energy.generation.basis}</p>
+              {energy.savings && <p className="mt-2 text-sm">First-year savings about <strong>{formatINR(energy.savings.year1SavingsInr)}</strong>{energy.savings.simplePaybackYears != null && <>, payback about <strong>{energy.savings.simplePaybackYears} years</strong></>}.</p>}
               <p className="mt-2 text-xs font-medium text-solar-700">Indicative only. Generation, savings and payback are not guaranteed.</p>
             </>
           ) : (
-            <p className="mt-2 text-sm text-ink-muted">Not estimated. {s?.annualGenerationUnavailableReason}</p>
+            <p className="mt-2 text-sm text-ink-muted">Not estimated. {energy.generationNote}</p>
           )}
+          <p className="mt-1 text-xs"><Link href={`/projects/${id}/site`}>Site, yield and savings</Link></p>
           <h2 className="section-title mt-6">Compliance and approvals</h2>
           <ul className="mt-2 space-y-1 text-sm">
             {compliance.map((c) => <li key={c.status} className="flex justify-between"><VerificationBadge status={c.status} /><span className="tabular-nums">{c._count}</span></li>)}

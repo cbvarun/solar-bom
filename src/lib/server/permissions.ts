@@ -17,6 +17,8 @@ export const PERMISSIONS = {
   "enquiries.manage": ["SALES_ENGINEER"],
   "projects.assign": ["SALES_ENGINEER", "DESIGN_ENGINEER"],
   "revisions.review": ["DESIGN_ENGINEER"],
+  "subsidies.edit": ["SALES_ENGINEER"],
+  "quotations.share": ["SALES_ENGINEER"],
   "users.manage": [],
 } as const satisfies Record<string, StaffRole[]>;
 export type Permission = keyof typeof PERMISSIONS;

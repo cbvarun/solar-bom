@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import { QUANTITY_STATUS_LABEL, VERIFICATION_LABEL, PROVENANCE_LABEL, AVAILABILITY_LABEL } from "@/lib/format";
 import { sectionLabel } from "@/lib/engine";
 import { STANDARD_EXCLUSIONS, STANDARD_TERMS, type ExportPayload } from "./payload";
+import { ESTIMATE_DISCLAIMER } from "@/lib/energy-summary";
 
 const GREEN = "FF163527";
 const LIGHT = "FFF0F7F3";
@@ -170,6 +171,38 @@ export async function bomXlsx(d: ExportPayload): Promise<Uint8Array> {
   for (const t of STANDARD_TERMS) ae.getRow(ar++).values = [t];
   ae.eachRow((row) => (row.alignment = { wrapText: true, vertical: "top" }));
 
+  // ---- Savings estimate ----
+  const e = d.energy;
+  if (e) {
+    const se = wb.addWorksheet("Savings estimate");
+    title(se, "Generation, subsidy and savings — indicative estimates, not guaranteed", sub);
+    se.getColumn(1).width = 40; se.getColumn(2).width = 22; se.getColumn(3).width = 22; se.getColumn(4).width = 22;
+    let r = 4;
+    const put = (k: string, v: string | number | null, fmt?: string) => { const row = se.getRow(r++); row.values = [k, v ?? "—"]; if (fmt && typeof v === "number") row.getCell(2).numFmt = fmt; };
+    se.getRow(r).values = ["Item", "Value"]; header(se, r++);
+    put("Installed capacity (kWp)", e.installedKwp);
+    put("Estimated annual generation (kWh)", e.generation?.annualKwh ?? `Not estimated. ${e.generationNote ?? ""}`.trim());
+    if (e.generation) { put("Specific yield (kWh/kWp/yr)", e.generation.specificYieldKwhPerKwpYr); put("Generation source", e.generation.source); }
+    put("Tariff used (₹/kWh)", e.tariff?.inrPerKwh ?? null); if (e.tariff?.source) put("Tariff source", e.tariff.source);
+    put("System price incl. GST", e.grossCostInr ?? "Pricing incomplete", INR);
+    put("Estimated subsidy", e.subsidy?.amountInr ?? null, INR); if (e.subsidy) put("Subsidy basis", e.subsidy.basis + (e.subsidy.verified ? "" : " Pending verification against the official notification."));
+    put("Net price after subsidy", e.netCostInr, INR);
+    put("First-year bill savings", e.savings?.year1SavingsInr ?? (e.savingsNote ?? null), INR);
+    put("Simple payback (years)", e.savings?.simplePaybackYears ?? null);
+    if (e.generation?.monthlyKwh) {
+      r++; se.getRow(r).values = ["Month", "Estimated kWh"]; header(se, r++);
+      ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].forEach((m, i) => (se.getRow(r++).values = [m, e.generation!.monthlyKwh![i]]));
+    }
+    if (e.savings?.projection) {
+      r++; se.getRow(r).values = ["Year", "Generation (kWh)", "Savings", "Cumulative savings"]; header(se, r++);
+      for (const p of e.savings.projection) { const row = se.getRow(r++); row.values = [p.year, p.kwh, p.savingsInr, p.cumulativeInr]; row.getCell(3).numFmt = INR; row.getCell(4).numFmt = INR; }
+    }
+    r++; se.getRow(r).values = ["Assumptions"]; header(se, r++);
+    for (const a of e.savings?.assumptions ?? []) se.getRow(r++).values = [a];
+    se.getRow(r++).values = [ESTIMATE_DISCLAIMER];
+    se.eachRow((row) => (row.alignment = { wrapText: true, vertical: "top" }));
+  }
+
   // ---- Summary ----
   title(sm, `${d.project.name} — project summary`, sub);
   sm.getColumn(1).width = 34; sm.getColumn(2).width = 40;
@@ -181,7 +214,7 @@ export async function bomXlsx(d: ExportPayload): Promise<Uint8Array> {
     ["Module count", s?.moduleCount ?? null], ["Module count by formula", s?.formulaModuleCount ?? null],
     ["Inverter AC capacity (kW)", s?.inverterAcW != null ? s.inverterAcW / 1000 : null], ["DC/AC ratio", s?.dcAcRatio ?? null],
     ["Selected module", s?.selectedModule ?? ""], ["Selected inverter", s?.selectedInverter ?? ""], ["Selected structure", s?.selectedStructure ?? ""],
-    ["Estimated annual generation (kWh)", s?.annualGeneration ? s.annualGeneration.kwh : "Not estimated (no verified specific yield)"],
+    ["Estimated annual generation (kWh, indicative)", d.energy?.generation ? d.energy.generation.annualKwh : s?.annualGeneration ? s.annualGeneration.kwh : "Not estimated"],
     ["Subtotal excl. GST (₹, priced lines)", d.pricing.subtotalExGst], ["GST (₹)", d.pricing.gstTotal], ["Estimated total incl. GST (₹)", d.pricing.grandTotal],
     ["Lines without price", d.pricing.unpricedLines], ["Lines without GST rate", d.pricing.untaxedLines],
   ];

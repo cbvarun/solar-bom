@@ -4,12 +4,14 @@ import { adminCtx } from "@/lib/server/admin-page";
 import { PageHead } from "@/components/admin/Fields";
 import { Alert } from "@/components/ui/Alert";
 import { formatDateTime, PROVENANCE_LABEL } from "@/lib/format";
+import { TERMINAL_STATUSES, endOfTodayBound } from "@/lib/crm";
 
 export default async function AdminDashboard({ searchParams }: { searchParams: Promise<{ denied?: string }> }) {
   const { session } = await adminCtx();
   const { denied } = await searchParams;
-  const [newEnq, pendingReviews, myBoms, products, provCounts, standards, taxUnset, pricesCount, quotes, recent] = await Promise.all([
+  const [newEnq, followUpsDue, pendingReviews, myBoms, products, provCounts, standards, taxUnset, pricesCount, quotes, recent] = await Promise.all([
     prisma.enquiry.count({ where: { status: "NEW" } }),
+    prisma.enquiry.count({ where: { nextFollowUpAt: { lt: endOfTodayBound() }, status: { notIn: [...TERMINAL_STATUSES] } } }),
     prisma.bOMRevision.findMany({ where: { status: "SUBMITTED" }, include: { bom: { include: { project: true } } }, orderBy: { createdAt: "asc" }, take: 10 }),
     prisma.bOMHeader.findMany({ where: { assignedToId: session.sub }, include: { project: true }, orderBy: { updatedAt: "desc" }, take: 10 }),
     prisma.product.count({ where: { status: "ACTIVE" } }),
@@ -22,7 +24,8 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
   ]);
   const unverifiedStandards = standards.filter((s) => s.verificationStatus !== "VERIFIED").reduce((a, s) => a + s._count, 0);
   const tiles = [
-    { label: "New enquiries", value: newEnq, href: "/admin/enquiries" },
+    { label: "New enquiries", value: newEnq, href: "/admin/enquiries?status=NEW" },
+    { label: "Follow-ups due", value: followUpsDue, href: "/admin/enquiries?due=1" },
     { label: "Quote requests open", value: quotes, href: "/admin/enquiries" },
     { label: "Revisions awaiting review", value: pendingReviews.length, href: "/admin/projects" },
     { label: "Active products", value: products, href: "/admin/products" },
