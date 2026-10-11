@@ -8,7 +8,8 @@ import { NewFromPackage } from "@/components/packages/NewFromPackage";
 import { savePackage } from "../package-actions";
 import { PACKAGE_EXTRA_ROWS, PACKAGE_SECTIONS } from "@/lib/packages";
 import { sectionLabel } from "@/lib/engine";
-import { formatDateTime, PHASE_LABEL } from "@/lib/format";
+import { CUSTOMER_TYPE_LABEL, formatDateTime, PHASE_LABEL, ROOF_LABEL, SYSTEM_LABEL } from "@/lib/format";
+import { CUSTOMER_TYPES, ROOF_TYPES, SYSTEM_TYPES } from "@/lib/package-filter";
 
 const loadPackages = () => prisma.standardPackage.findMany({
   orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -26,6 +27,18 @@ function PackageForm({ p, products }: { p: Pkg; products: ProductOpt[] }) {
       <Hidden name="rows" value={String(rows.length)} />
       <Field label="Name" name="name" required defaultValue={p.name} />
       <Select label="Supply" name="supplyPhase" defaultValue={p.supplyPhase} options={[{ value: "SINGLE", label: "Single-phase" }, { value: "THREE", label: "Three-phase" }]} />
+      <Select label="Electrical configuration" name="systemType" defaultValue={p.systemType} options={SYSTEM_TYPES.map((t) => ({ value: t, label: SYSTEM_LABEL[t] }))} />
+      <div className="hidden sm:block" />
+      <fieldset className="min-w-0">
+        <legend className="label">Suits customer types</legend>
+        <p className="hint">Leave all unticked if it suits any customer.</p>
+        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">{CUSTOMER_TYPES.map((c) => <Check key={c} label={CUSTOMER_TYPE_LABEL[c]} name="customerTypes" value={c} defaultChecked={p.customerTypes.includes(c)} />)}</div>
+      </fieldset>
+      <fieldset className="min-w-0">
+        <legend className="label">Suits roof types</legend>
+        <p className="hint">Leave all unticked if it suits any roof.</p>
+        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">{ROOF_TYPES.map((r) => <Check key={r} label={ROOF_LABEL[r]} name="roofTypes" value={r} defaultChecked={p.roofTypes.includes(r)} />)}</div>
+      </fieldset>
       <Field label="DC capacity (kWp)" name="capacityKwp" type="number" step="any" required defaultValue={n(p.capacityKwp)} />
       <div className="grid grid-cols-2 gap-2">
         <Field label="Module rating (Wp)" name="moduleWp" type="number" defaultValue={p.moduleWp} />
@@ -74,8 +87,9 @@ export default async function Packages() {
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-medium">{p.name}</p>
               <Badge tone={p.active ? "green" : "gray"}>{p.active ? "active" : "inactive"}</Badge>
-              <span className="text-xs text-ink-muted">{n(p.capacityKwp)} kWp · {PHASE_LABEL[p.supplyPhase]}{p.moduleCount && p.moduleWp ? ` · ${p.moduleCount} × ${p.moduleWp} Wp` : ""} · {p._count.boms} project{p._count.boms === 1 ? "" : "s"}</span>
+              <span className="text-xs text-ink-muted">{n(p.capacityKwp)} kWp · {PHASE_LABEL[p.supplyPhase]} · {SYSTEM_LABEL[p.systemType]}{p.moduleCount && p.moduleWp ? ` · ${p.moduleCount} × ${p.moduleWp} Wp` : ""} · {p._count.boms} project{p._count.boms === 1 ? "" : "s"}</span>
             </div>
+            <p className="mt-1 text-xs text-ink-muted">Suits {p.customerTypes.length ? p.customerTypes.map((c) => CUSTOMER_TYPE_LABEL[c]).join(", ") : "any customer"} · {p.roofTypes.length ? p.roofTypes.map((r) => ROOF_LABEL[r]).join(", ") : "any roof"}</p>
             <p className="mt-1 text-xs text-ink-muted">{p.code} · Source: {p.source}{p.updatedBy && ` · last edited by ${p.updatedBy}, ${formatDateTime(p.updatedAt)}`}</p>
             {p.notes && <p className="mt-2 text-sm text-ink-muted">{p.notes}</p>}
             <div className="mt-3 overflow-x-auto">
