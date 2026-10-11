@@ -44,17 +44,18 @@ export function SiteEditor({ projectId, initial, schemes, readOnly, hasEstimate 
   const [dirty, setDirty] = useState(false);
   const set = (k: keyof typeof f, v: string) => { setF((x) => ({ ...x, [k]: v })); setDirty(true); };
 
+  const formBody = () => ({
+      latitude: pin?.[0] ?? null, longitude: pin?.[1] ?? null, roofOutline: outline.length >= 3 ? outline : null,
+      tiltDeg: optimal ? null : f.tiltDeg, azimuthDeg: optimal ? null : f.azimuthDeg, systemLossPct: f.systemLossPct, shadingLossPct: f.shadingLossPct,
+      tariffInrPerKwh: f.tariffInrPerKwh, tariffSource: f.tariffSource, subsidySchemeId: f.subsidySchemeId, applyRoofArea,
+  });
+
   async function save(): Promise<boolean> {
     setBusy("save");
     setMsg(null);
     setErrors({});
-    const body = {
-      latitude: pin?.[0] ?? null, longitude: pin?.[1] ?? null, roofOutline: outline.length >= 3 ? outline : null,
-      tiltDeg: optimal ? null : f.tiltDeg, azimuthDeg: optimal ? null : f.azimuthDeg, systemLossPct: f.systemLossPct, shadingLossPct: f.shadingLossPct,
-      tariffInrPerKwh: f.tariffInrPerKwh, tariffSource: f.tariffSource, subsidySchemeId: f.subsidySchemeId, applyRoofArea,
-    };
     try {
-      const res = await fetch(`/api/projects/${projectId}/site`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const res = await fetch(`/api/projects/${projectId}/site`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(formBody()) });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (j.errors) setErrors(j.errors);
@@ -74,15 +75,16 @@ export function SiteEditor({ projectId, initial, schemes, readOnly, hasEstimate 
     }
   }
 
+  // Saves the form and estimates in one request, so the estimate always uses what is on screen.
   async function estimate() {
-    if (dirty || !hasEstimate) { if (!(await save())) return; }
     setBusy("yield");
     setMsg(null);
+    setErrors({});
     try {
-      const res = await fetch(`/api/projects/${projectId}/site/yield`, { method: "POST" });
+      const res = await fetch(`/api/projects/${projectId}/site/yield`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(formBody()) });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) setMsg({ tone: "error", text: j.error ?? `Estimate failed (${res.status}).` });
-      else { setMsg({ tone: "ok", text: `Estimated ${j.specificYieldKwhPerKwpYr} kWh per kWp per year (${j.source}).` }); router.refresh(); }
+      if (!res.ok) { if (j.errors) setErrors(j.errors); setMsg({ tone: "error", text: j.error ?? (j.errors ? "Please correct the highlighted fields." : `Estimate failed (${res.status}).`) }); }
+      else { setDirty(false); setApplyRoofArea(false); setMsg({ tone: "ok", text: `Estimated ${j.specificYieldKwhPerKwpYr} kWh per kWp per year (${j.source}).` }); router.refresh(); }
     } catch {
       setMsg({ tone: "error", text: "Could not reach the server." });
     } finally {
