@@ -8,6 +8,8 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { RULE_DEFINITIONS } from "../src/lib/engine/rules";
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
@@ -287,6 +289,12 @@ async function main() {
       await prisma.productSpecification.upsert({ where: { productId_key: { productId: prod.id, key } }, update: v, create: { productId: prod.id, key, ...v } });
     }
   }
+
+  // Catalogue items from the company's MEDA standard BOM, linked to the standard packages the
+  // migration created. The migration already does this on databases that had categories.
+  const meda = readFileSync(join(__dirname, "data", "meda-catalogue.sql"), "utf8")
+    .split(/;\s*\n\s*\n/).map((x) => x.replace(/^--.*$/gm, "").trim()).filter(Boolean);
+  for (const stmt of meda) await prisma.$executeRawUnsafe(stmt.replace(/;$/, ""));
 
   // Compatibility rules
   const compatRules = [

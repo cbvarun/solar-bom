@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { PackageBomNotice } from "@/components/packages/PackageBomNotice";
 import { loadProjectOr404 } from "@/lib/server/access";
 import { bomPricing, engineSnapshot, loadBom } from "@/lib/server/bom";
 import { sectionLabel } from "@/lib/engine";
@@ -15,6 +16,7 @@ export default async function ProjectSummary({ params }: { params: Promise<{ id:
   const { project } = await loadProjectOr404(id);
   const bom = await loadBom(prisma, id);
   const calc = bom ? engineSnapshot(bom) : null;
+  const pkg = bom?.sourcePackageId ? await prisma.standardPackage.findUnique({ where: { id: bom.sourcePackageId } }) : null;
   const pricing = bom ? bomPricing(bom) : null;
   const energy = await energySummary(prisma, id);
   const compliance = await prisma.projectComplianceItem.groupBy({ by: ["status"], where: { projectId: id }, _count: true });
@@ -38,6 +40,7 @@ export default async function ProjectSummary({ params }: { params: Promise<{ id:
   return (
     <div className="space-y-6">
       <PreliminaryNotice compact />
+      {pkg && <PackageBomNotice pkg={pkg} />}
       {errors.length > 0 && (
         <Alert tone="error" title={`${errors.length} configuration issue${errors.length > 1 ? "s" : ""} to resolve`}>
           <ul className="list-disc pl-5">{errors.map((c) => <li key={c.key}>{c.message}</li>)}</ul>
@@ -46,7 +49,8 @@ export default async function ProjectSummary({ params }: { params: Promise<{ id:
 
       <section aria-label="Key figures" className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {tile(<>Target DC capacity</>, d?.targetCapacityKwp != null ? `${Number(d.targetCapacityKwp)} kWp` : "TBC")}
-        {tile(<>Installed DC capacity</>, s?.installedDcW != null ? `${formatNum(s.installedDcW / 1000)} kWp` : "—", s?.moduleCount != null ? `${s.moduleCount} × ${s.moduleWp} Wp${s.formulaModuleCount !== s.moduleCount ? ` (formula: ${s.formulaModuleCount})` : ""}` : undefined)}
+        {pkg && !s ? tile(<>Package DC capacity</>, `${formatNum(Number(pkg.capacityKwp))} kWp`, pkg.moduleCount && pkg.moduleWp ? `${pkg.moduleCount} × ${pkg.moduleWp} Wp (from package)` : "from package")
+          : tile(<>Installed DC capacity</>, s?.installedDcW != null ? `${formatNum(s.installedDcW / 1000)} kWp` : "—", s?.moduleCount != null ? `${s.moduleCount} × ${s.moduleWp} Wp${s.formulaModuleCount !== s.moduleCount ? ` (formula: ${s.formulaModuleCount})` : ""}` : undefined)}
         {tile(<>Inverter AC capacity</>, s?.inverterAcW ? `${s.inverterAcW / 1000} kW` : "—", s?.selectedInverter ?? "No compatible inverter")}
         {tile(<Term k="dcac" />, s?.dcAcRatio ?? "—")}
         {tile(<>Module count</>, s?.moduleCount ?? "—", s?.stringLayout ? `Strings: ${s.stringLayout.modulesPerString.join(" + ")}` : undefined)}

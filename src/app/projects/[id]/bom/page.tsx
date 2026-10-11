@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { PackageBomNotice } from "@/components/packages/PackageBomNotice";
 import { loadProjectOr404 } from "@/lib/server/access";
 import { bomPricing, engineSnapshot, loadBom } from "@/lib/server/bom";
 import { serializeItems } from "@/lib/server/serialize";
@@ -14,9 +15,11 @@ export default async function BomPage({ params }: { params: Promise<{ id: string
   const session = await getSession();
   const products = await prisma.product.findMany({ where: { status: "ACTIVE" }, include: { category: true, manufacturer: true }, orderBy: [{ category: { sortOrder: "asc" } }, { sku: "asc" }] });
   const calc = engineSnapshot(bom);
+  const pkg = bom.sourcePackageId ? await prisma.standardPackage.findUnique({ where: { id: bom.sourcePackageId } }) : null;
   return (
     <div className="space-y-4">
       <PreliminaryNotice />
+      {pkg && <PackageBomNotice pkg={pkg} />}
       <BomEditor
         projectId={id}
         readOnly={access !== "edit"}

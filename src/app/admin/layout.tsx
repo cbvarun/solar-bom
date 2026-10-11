@@ -17,6 +17,7 @@ const NAV: { href: string; label: string; perm?: Permission }[] = [
   { href: "/admin/pricing", label: "Pricing & GST" },
   { href: "/admin/rules", label: "Engineering rules" },
   { href: "/admin/subsidies", label: "Subsidies" },
+  { href: "/admin/packages", label: "Standard packages" },
   { href: "/admin/compliance", label: "Compliance library" },
   { href: "/admin/users", label: "Users & roles", perm: "users.manage" },
   { href: "/admin/audit", label: "Audit log" },
