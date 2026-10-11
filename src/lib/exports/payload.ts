@@ -1,6 +1,7 @@
 import type { VerificationStatus } from "@prisma/client";
 import type { EngineResult, PricingResult } from "@/lib/engine";
 import type { BomItemDTO } from "@/lib/server/serialize";
+import type { EnergySummary } from "@/lib/energy-summary";
 
 /**
  * Everything a BOM export needs, as plain JSON. The server assembles it
@@ -25,6 +26,8 @@ export interface ExportPayload {
   design: [string, string][];
   /** Major equipment (modules, inverter, structure) with specification values already formatted. */
   majors: { name: string; sku: string; illustrative: boolean; specs: { label: string; value: string; provenance: string }[] }[];
+  /** Generation, subsidy and savings estimates. Absent in quotations issued before estimates existed. */
+  energy?: EnergySummary | null;
   validityDays: number;
   generatedAt: string;
 }

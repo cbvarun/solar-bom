@@ -136,3 +136,20 @@ export function fieldErrors(err: z.ZodError): Record<string, string> {
   }
   return out;
 }
+
+export const siteSchema = z.object({
+  latitude: optNum(-90, 90, "Latitude"),
+  longitude: optNum(-180, 180, "Longitude"),
+  roofOutline: z.array(z.tuple([z.number().min(-90).max(90), z.number().min(-180).max(180)])).max(200, "Too many outline points").nullable().optional(),
+  tiltDeg: optNum(0, 90, "Tilt"),
+  azimuthDeg: optNum(0, 360, "Azimuth"),
+  systemLossPct: optNum(0, 50, "System losses"),
+  shadingLossPct: optNum(0, 90, "Shading loss"),
+  tariffInrPerKwh: optNum(0, 100, "Tariff"),
+  tariffSource: optStr(200),
+  subsidySchemeId: optStr(64),
+  applyRoofArea: z.boolean().optional(),
+}).superRefine((v, ctx) => {
+  if ((v.latitude == null) !== (v.longitude == null)) ctx.addIssue({ code: "custom", path: ["latitude"], message: "Set both latitude and longitude, or neither." });
+});
+export type SiteForm = z.infer<typeof siteSchema>;

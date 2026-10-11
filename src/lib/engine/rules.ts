@@ -75,6 +75,13 @@ export const RULE_DEFINITIONS: RuleDefinition[] = [
   // Commercial
   { key: "quotation_validity_days", label: "Quotation validity", group: "Commercial", defaultValue: 15, unit: "days", isAssumption: false,
     description: "Default validity period printed on quotations." },
+  // Savings (no defaults: set from the module datasheet and the customer's tariff assumptions)
+  { key: "savings_degradation_pct_per_yr", label: "Module output degradation per year", group: "Savings", defaultValue: null, unit: "%/yr", isAssumption: true,
+    description: "Used for multi-year generation and savings. Take it from the selected module's warranty datasheet. Leave blank to show first-year figures only." },
+  { key: "savings_tariff_escalation_pct_per_yr", label: "Electricity tariff change per year", group: "Savings", defaultValue: null, unit: "%/yr", isAssumption: true,
+    description: "Assumed yearly change in the customer's tariff for multi-year savings. Leave blank to assume no change." },
+  { key: "savings_analysis_years", label: "Savings analysis period", group: "Savings", defaultValue: null, unit: "years", isAssumption: true,
+    description: "Number of years shown in the savings projection. Leave blank to show first-year savings and simple payback only." },
 ];
 
 export function defaultRules(): Rules {

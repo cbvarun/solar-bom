@@ -103,12 +103,19 @@ enum QuotationStatus {
   ISSUED
   EXPIRED
   CANCELLED
+  ACCEPTED
 }
 
+/// Lead pipeline. IN_PROGRESS and CLOSED are kept for enquiries recorded before the pipeline stages existed.
 enum EnquiryStatus {
   NEW
   IN_PROGRESS
   CLOSED
+  CONTACTED
+  SITE_VISIT
+  PROPOSAL_SENT
+  WON
+  LOST
 }
 
 // ---------- Users & roles ----------
@@ -463,6 +470,7 @@ model Project {
   documents     ComplianceDocument[]
   quotations    Quotation[]
   enquiries     Enquiry[]
+  site          SiteAssessment?
 }
 
 /// Configurator inputs. Null = "To be confirmed during site survey".
@@ -579,43 +587,113 @@ model ProjectCostItem {
 }
 
 model Quotation {
-  id            String          @id @default(cuid())
-  number        String          @unique
-  projectId     String
-  bomId         String
-  revisionNo    Int
-  status        QuotationStatus @default(DRAFT)
-  validUntil    DateTime?
-  totals        Json
-  terms         String?
-  contactName   String?
-  contactEmail  String?
-  message       String?
-  pdfStorageKey String? // quotations issued before PDFs were built in the browser
-  snapshot      Json? // export data at issue time; the browser builds the PDF from it
-  createdBy     String?
-  createdAt     DateTime        @default(now())
-  project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  bom           BOMHeader       @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  id                String          @id @default(cuid())
+  number            String          @unique
+  projectId         String
+  bomId             String
+  revisionNo        Int
+  status            QuotationStatus @default(DRAFT)
+  validUntil        DateTime?
+  totals            Json
+  terms             String?
+  contactName       String?
+  contactEmail      String?
+  message           String?
+  /// Unguessable token for the customer-facing web proposal (/proposal/<token>).
+  shareToken        String?         @unique
+  sharedAt          DateTime?
+  /// Electronic acceptance by the customer on the web proposal. Not a certified digital signature.
+  acceptedAt        DateTime?
+  acceptedByName    String?
+  acceptedByEmail   String?
+  acceptedIp        String?
+  acceptedUserAgent String?
+  acceptanceNote    String?
+  pdfStorageKey     String? // quotations issued before PDFs were built in the browser
+  snapshot          Json? // export data at issue time; the browser builds the PDF from it
+  createdBy         String?
+  createdAt         DateTime        @default(now())
+  project           Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bom               BOMHeader       @relation(fields: [bomId], references: [id], onDelete: Cascade)
 }
 
 model Enquiry {
-  id           String        @id @default(cuid())
-  name         String
-  email        String
-  phone        String?
-  company      String?
-  customerType CustomerType?
-  location     String?
-  capacityKwp  Decimal?      @db.Decimal(10, 2)
-  message      String
-  source       String        @default("website") // website | quote-request | product-quote
-  productSku   String?
-  projectId    String?
-  status       EnquiryStatus @default(NEW)
-  assignedTo   String?
-  createdAt    DateTime      @default(now())
-  project      Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  id             String        @id @default(cuid())
+  name           String
+  email          String
+  phone          String?
+  company        String?
+  customerType   CustomerType?
+  location       String?
+  capacityKwp    Decimal?      @db.Decimal(10, 2)
+  message        String
+  source         String        @default("website") // website | quote-request | product-quote
+  productSku     String?
+  projectId      String?
+  status         EnquiryStatus @default(NEW)
+  assignedTo     String?
+  nextFollowUpAt DateTime?
+  lostReason     String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @default(now()) @updatedAt
+  project        Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  notes          EnquiryNote[]
+}
+
+model EnquiryNote {
+  id        String   @id @default(cuid())
+  enquiryId String
+  body      String
+  author    String
+  createdAt DateTime @default(now())
+  enquiry   Enquiry  @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+
+  @@index([enquiryId, createdAt])
+}
+
+/// Site location, roof outline and energy/savings inputs for a project.
+/// Values here are estimates for proposals; none of them is a design approval.
+model SiteAssessment {
+  id                String   @id @default(cuid())
+  projectId         String   @unique
+  latitude          Decimal? @db.Decimal(9, 6)
+  longitude         Decimal? @db.Decimal(9, 6)
+  /// Roof outline drawn on the map: [[lat, lon], ...]
+  roofOutline       Json?
+  roofOutlineAreaM2 Decimal? @db.Decimal(10, 2)
+  /// Array tilt from horizontal and compass azimuth (180 = facing south).
+  tiltDeg           Decimal? @db.Decimal(5, 2)
+  azimuthDeg        Decimal? @db.Decimal(6, 2)
+  systemLossPct     Decimal? @db.Decimal(5, 2)
+  shadingLossPct    Decimal? @db.Decimal(5, 2)
+  /// Result of the last yield estimate (PVGIS): { source, specificYield, monthly[12], inputs, fetchedAt }
+  yieldEstimate     Json?
+  tariffInrPerKwh   Decimal? @db.Decimal(8, 3)
+  tariffSource      String?
+  subsidySchemeId   String?
+  updatedAt         DateTime @updatedAt
+  updatedBy         String?
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+/// A government subsidy (e.g. central financial assistance). Amounts are entered
+/// by staff from the official notification; nothing is pre-filled.
+model SubsidyScheme {
+  id                 String             @id @default(cuid())
+  code               String             @unique
+  name               String
+  customerTypes      CustomerType[]
+  /// Capacity slabs: [{ "upToKw": number, "inrPerKw": number }] applied in order.
+  slabs              Json
+  maxCapacityKw      Decimal?           @db.Decimal(10, 2)
+  maxAmountInr       Decimal?           @db.Decimal(14, 2)
+  sourceUrl          String?
+  notes              String?
+  verificationStatus VerificationStatus @default(PENDING_VERIFICATION)
+  verifiedAt         DateTime?
+  verifiedBy         String?
+  active             Boolean            @default(false)
+  updatedAt          DateTime           @updatedAt
 }
 
 model AuditLog {

@@ -8,6 +8,7 @@ export function ProjectTabs({ id }: { id: string }) {
   const tabs = [
     { href: `/projects/${id}`, label: "Summary" },
     { href: `/projects/${id}/bom`, label: "Bill of materials" },
+    { href: `/projects/${id}/site`, label: "Site & savings" },
     { href: `/projects/${id}/compliance`, label: "Compliance" },
     { href: `/projects/${id}/quote`, label: "Quote & export" },
     { href: `/projects/${id}/configure`, label: "Configuration" },

@@ -16,7 +16,10 @@ Stack: Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS · Post
 | Email to sales | **Not implemented.** Quote requests and enquiries are stored and appear under Admin → Enquiries & quotes. The UI says plainly that no email was sent. To add email, implement `src/lib/server/notify.ts` against `SMTP_URL`. |
 | File storage | An R2 bucket on Cloudflare, or local disk under `STORAGE_DIR` on Node. Files are kept outside `/public` and served only through `/api/documents/[id]`. Quotations store a snapshot of their data, and the browser rebuilds the PDF from it. |
 | Company details | Taken from `NEXT_PUBLIC_COMPANY_*`. When unset, pages and PDFs show "not configured" rather than invented details. |
-| Generation, savings and payback | Shown only when an engineer enters a verified specific yield with its source. They are always labelled as estimates, never guarantees. |
+| Generation, savings and payback | Taken from an engineer-verified specific yield when one is entered. Otherwise, once the site is pinned on the map, from a free [PVGIS](https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis_en) estimate for that location, labelled with its source. Savings and payback need the customer's tariff; multi-year projection needs the degradation and analysis-period rules, which have no defaults. Everything is labelled as an estimate, never a guarantee. |
+| Subsidies (e.g. PM Surya Ghar) | **No amounts seeded.** The scheme record exists but is inactive with no slabs. Sales enters slab amounts from the official notification under Admin → Subsidies; it can only be activated with slabs and marked verified with an https source. Shown as "estimate only; decided by the scheme authority". |
+| Map and roof outline | OpenStreetMap tiles via Leaflet. There is no satellite imagery (no free, licensable source), so a roof outline drawn on the street map is approximate; the measured roof area stays the engineer's input. |
+| Web proposal acceptance | Records name, email, time, IP address and browser. It is an electronic acceptance record, **not** a certified digital signature (Aadhaar eSign or DSC would need a paid provider). |
 
 ## Setup
 
@@ -60,6 +63,20 @@ Customers do not sign in. A project they create is tied to their browser through
 - `src/lib/exports/`: PDF, XLSX (with live formulas) and CSV generators. They run in the browser from the JSON the server returns, so no document is generated on the server.
 - `src/app/`: pages and API routes. `src/app/admin/actions.ts` holds every admin server action, each checked against `src/lib/server/permissions.ts` and audited.
 - `prisma/`: schema, migrations and seed.
+
+## Sales features
+
+- **Site & savings** (project tab): pin the site, draw the roof outline (area computed from the drawing), set tilt, azimuth and losses, get a PVGIS yield estimate, enter the customer's tariff and pick a subsidy scheme. The project page, PDF, Excel ("Savings estimate" sheet) and web proposal show generation, monthly profile, net price after subsidy, first-year savings and payback.
+- **Web proposal**: staff with sales permission click "Share link" on a quotation (Quote tab). The customer gets an unguessable link (`/proposal/<token>`) to view the proposal on their phone, download the PDF and accept it online. Staff can copy the link, open WhatsApp or email with it pre-filled (sent from their own app, not the server), or revoke it. Expired proposals can't be accepted.
+- **Lead pipeline**: enquiries move through New → Contacted → Site visit → Proposal sent → Won/Lost, with an owner, next follow-up date, notes and a lost reason. The dashboard shows follow-ups due.
+
+### Free external services and their terms
+
+| Service | Used for | Terms to respect |
+|---|---|---|
+| OpenStreetMap tiles | Map background | Attribution is shown on the map. The [tile usage policy](https://operations.osmfoundation.org/policies/tiles/) suits light use; for heavy traffic switch `TILE_URL` in `src/components/site/SiteMap.tsx` to another provider. |
+| Nominatim | Place search on the map | Called from the visitor's browser only when they press Search (max 1 request/second, [usage policy](https://operations.osmfoundation.org/policies/nominatim/)). |
+| PVGIS 5.3 (European Commission JRC) | Location yield estimate | Free, no key. Called from the server when staff or the customer press "Estimate yield", throttled to once per 15 s per project. If it is unreachable the page says so; no figure is invented. |
 
 ## Rules the application enforces
 
