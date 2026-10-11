@@ -235,6 +235,7 @@ model Product {
   certifications     ProductCertification[]
   prices             PriceListEntry[]
   bomItems           BOMItem[]
+  packageLines       StandardPackageLine[]
 
   @@index([categoryId])
   @@index([manufacturerId])
@@ -512,10 +513,13 @@ model BOMHeader {
   pricesIncludeGst Boolean           @default(false)
   assignedToId     String?
   calcSnapshot     Json? // last engine result (summary, checks, assumptions)
+  /// Set when the BOM was started from a standard package: its lines are kept as entered and the engine does not add lines.
+  sourcePackageId  String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   assignedTo       User?             @relation("BomAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  sourcePackage    StandardPackage?  @relation(fields: [sourcePackageId], references: [id], onDelete: SetNull)
   items            BOMItem[]
   revisions        BOMRevision[]
   costItems        ProjectCostItem[]
@@ -711,4 +715,42 @@ model AuditLog {
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([entityType, entityId])
+}
+
+/// A fixed kit the company quotes by size and phase (e.g. the MEDA standard BOMs).
+/// Lines are stored as supplied by the company; they are not manufacturer-verified specifications.
+model StandardPackage {
+  id          String                @id @default(cuid())
+  code        String                @unique
+  name        String
+  capacityKwp Decimal               @db.Decimal(8, 3)
+  supplyPhase SupplyPhase
+  systemType  SystemType            @default(GRID_TIED)
+  moduleWp    Int?
+  moduleCount Int?
+  source      String
+  notes       String?
+  active      Boolean               @default(true)
+  sortOrder   Int                   @default(0)
+  updatedAt   DateTime              @default(now()) @updatedAt
+  updatedBy   String?
+  lines       StandardPackageLine[]
+  boms        BOMHeader[]
+}
+
+model StandardPackageLine {
+  id          String          @id @default(cuid())
+  packageId   String
+  lineNo      Int
+  section     String
+  description String
+  quantity    Decimal         @db.Decimal(14, 3)
+  unit        String
+  makeScope   String?
+  /// Catalogue product for this line, when one exists. Copied to BOM lines so catalogue prices apply.
+  productId   String?
+  package     StandardPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  product     Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([packageId])
 }

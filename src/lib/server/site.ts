@@ -77,7 +77,9 @@ export async function energySummary(db: Db, projectId: string): Promise<EnergySu
   ]);
   const calc = bom ? engineSnapshot(bom) : null;
   const pricing = bom ? bomPricing(bom) : null;
-  const installedKwp = calc?.summary.installedDcW != null ? calc.summary.installedDcW / 1000 : null;
+  // Package BOMs have no engine result; their capacity comes from the package.
+  const pkg = !calc && bom?.sourcePackageId ? await db.standardPackage.findUnique({ where: { id: bom.sourcePackageId }, select: { capacityKwp: true } }) : null;
+  const installedKwp = calc?.summary.installedDcW != null ? calc.summary.installedDcW / 1000 : pkg ? Number(pkg.capacityKwp) : null;
   const location = site?.latitude != null && site.longitude != null ? { latitude: Number(site.latitude), longitude: Number(site.longitude) } : null;
 
   // Generation: an engineer-verified yield wins; otherwise the PVGIS estimate for the location.

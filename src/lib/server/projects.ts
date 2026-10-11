@@ -13,7 +13,7 @@ const num = (v: Prisma.Decimal | null | undefined) => (v == null ? null : Number
 export const projectInclude = { designInputs: true, boms: { orderBy: { createdAt: "asc" } } } as const;
 export type ProjectWithInputs = Prisma.ProjectGetPayload<{ include: typeof projectInclude }>;
 
-async function nextReference(db: Db): Promise<string> {
+export async function nextReference(db: Db): Promise<string> {
   const year = new Date().getFullYear();
   const count = await db.project.count({ where: { reference: { startsWith: `SP-${year}-` } } });
   return `SP-${year}-${String(count + 1).padStart(4, "0")}`;
@@ -121,6 +121,12 @@ export async function runEngine(db: Db, projectId: string): Promise<{ result: En
  * quantity change is audited and a new revision snapshot is recorded.
  */
 export async function generateAndSaveBom(db: PrismaClient, projectId: string, actor: Actor, summary: string) {
+  // A BOM started from a standard package keeps the package lines as entered: the engine would add a second set.
+  const head = await db.bOMHeader.findFirst({ where: { projectId }, orderBy: { createdAt: "asc" }, include: { sourcePackage: { select: { name: true } } } });
+  if (head?.sourcePackageId) {
+    const rev = await createRevision(db, head.id, `${summary}. Lines from standard package ${head.sourcePackage?.name ?? ""} were kept; the engine was not run.`, actor);
+    return { bomId: head.id, revisionNo: rev.revisionNo, result: null, fromPackage: true as const };
+  }
   const { result, skipped } = await runEngine(db, projectId);
   return db.$transaction(async (tx) => {
     let bom = await tx.bOMHeader.findFirst({ where: { projectId }, orderBy: { createdAt: "asc" } });
