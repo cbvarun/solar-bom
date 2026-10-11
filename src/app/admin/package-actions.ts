@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { audit } from "@/lib/server/audit";
 import { guarded, type ActionResult } from "@/lib/server/admin-guard";
 import { PACKAGE_SECTIONS } from "@/lib/packages";
+import { CUSTOMER_TYPES, ROOF_TYPES, SYSTEM_TYPES } from "@/lib/package-filter";
 
 const s = (max = 300) => z.preprocess((v) => (v === "" || v == null ? null : String(v).trim()), z.string().max(max).nullable());
 const int = z.preprocess((v) => (v === "" || v == null ? null : Number(v)), z.number().int().min(1).max(100000).nullable());
@@ -15,6 +16,7 @@ const schema = z.object({
   name: z.string().trim().min(2, "Name is required").max(120),
   capacityKwp: z.preprocess((v) => Number(v), z.number({ invalid_type_error: "Must be a number" }).positive("Must be above 0").max(10000)),
   supplyPhase: z.enum(["SINGLE", "THREE"]),
+  systemType: z.enum(SYSTEM_TYPES),
   moduleWp: int,
   moduleCount: int,
   notes: s(4000),
@@ -29,6 +31,9 @@ const schema = z.object({
 export async function savePackage(_p: ActionResult | null, fd: FormData): Promise<ActionResult> {
   return guarded("packages.edit", async (actor) => {
     const d = schema.parse(Object.fromEntries(fd.entries()));
+    // Ticked boxes; none ticked means the package is not restricted.
+    const customerTypes = z.array(z.enum(CUSTOMER_TYPES)).parse(fd.getAll("customerTypes"));
+    const roofTypes = z.array(z.enum(ROOF_TYPES)).parse(fd.getAll("roofTypes"));
     const rows = Number(fd.get("rows") ?? 0);
     const errors: Record<string, string> = {};
     const lines: { section: string; description: string; quantity: number; unit: string; makeScope: string | null; productId: string | null }[] = [];
@@ -53,17 +58,18 @@ export async function savePackage(_p: ActionResult | null, fd: FormData): Promis
     await prisma.$transaction(async (tx) => {
       await tx.standardPackage.update({
         where: { id: d.id },
-        data: { name: d.name, capacityKwp: new Prisma.Decimal(d.capacityKwp), supplyPhase: d.supplyPhase, moduleWp: d.moduleWp, moduleCount: d.moduleCount, notes: d.notes, active: d.active, updatedBy: actor.label },
+        data: { name: d.name, capacityKwp: new Prisma.Decimal(d.capacityKwp), supplyPhase: d.supplyPhase, systemType: d.systemType, customerTypes, roofTypes, moduleWp: d.moduleWp, moduleCount: d.moduleCount, notes: d.notes, active: d.active, updatedBy: actor.label },
       });
       await tx.standardPackageLine.deleteMany({ where: { packageId: d.id } });
       await tx.standardPackageLine.createMany({ data: lines.map((l, i) => ({ ...l, packageId: d.id, lineNo: i + 1, quantity: new Prisma.Decimal(l.quantity) })) });
       await audit(tx, actor, {
         entityType: "StandardPackage", entityId: d.id, action: "update",
-        oldValue: { name: before.name, capacityKwp: Number(before.capacityKwp), active: before.active, lines: before.lines.map((l) => `${Number(l.quantity)} × ${l.description}`) },
-        newValue: { name: d.name, capacityKwp: d.capacityKwp, active: d.active, lines: lines.map((l) => `${l.quantity} × ${l.description}`) },
+        oldValue: { name: before.name, capacityKwp: Number(before.capacityKwp), systemType: before.systemType, customerTypes: before.customerTypes, roofTypes: before.roofTypes, active: before.active, lines: before.lines.map((l) => `${Number(l.quantity)} × ${l.description}`) },
+        newValue: { name: d.name, capacityKwp: d.capacityKwp, systemType: d.systemType, customerTypes, roofTypes, active: d.active, lines: lines.map((l) => `${l.quantity} × ${l.description}`) },
       });
     });
     revalidatePath("/admin/packages");
+    revalidatePath("/packages");
     return { ok: true, message: "Package saved. Projects already created from it are unchanged." };
   });
 }

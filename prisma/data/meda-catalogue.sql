@@ -105,3 +105,7 @@ UPDATE "StandardPackageLine" l SET "productId" = p.id FROM (VALUES
   ('LIGTHENING ARRESTOR, 2M CONVENTIONAL','MEDA-LA-2M')
 ) AS v(description, sku) JOIN "Product" p ON p.sku = v.sku
 WHERE l."productId" IS NULL AND l."packageId" LIKE 'pkg_meda_%' AND l.description = v.description;
+
+
+-- Suitability (see migration 20261011170000_package_suitability).
+UPDATE "StandardPackage" SET "customerTypes" = ARRAY['RESIDENTIAL']::"CustomerType"[] WHERE "id" LIKE 'pkg_meda_%';

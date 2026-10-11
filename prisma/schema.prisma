@@ -723,23 +723,26 @@ model AuditLog {
 /// A fixed kit the company quotes by size and phase (e.g. the MEDA standard BOMs).
 /// Lines are stored as supplied by the company; they are not manufacturer-verified specifications.
 model StandardPackage {
-  id          String                @id @default(cuid())
-  code        String                @unique
-  name        String
-  capacityKwp Decimal               @db.Decimal(8, 3)
-  supplyPhase SupplyPhase
-  systemType  SystemType            @default(GRID_TIED)
-  moduleWp    Int?
-  moduleCount Int?
-  source      String
-  notes       String?
-  active      Boolean               @default(true)
-  sortOrder   Int                   @default(0)
-  updatedAt   DateTime              @default(now()) @updatedAt
-  updatedBy   String?
-  lines       StandardPackageLine[]
-  boms        BOMHeader[]
-  enquiries   Enquiry[]
+  id            String                @id @default(cuid())
+  code          String                @unique
+  name          String
+  capacityKwp   Decimal               @db.Decimal(8, 3)
+  supplyPhase   SupplyPhase
+  systemType    SystemType            @default(GRID_TIED)
+  moduleWp      Int?
+  moduleCount   Int?
+  /// Customer types and roof types the package suits; empty means it is not restricted.
+  customerTypes CustomerType[]        @default([])
+  roofTypes     RoofType[]            @default([])
+  source        String
+  notes         String?
+  active        Boolean               @default(true)
+  sortOrder     Int                   @default(0)
+  updatedAt     DateTime              @default(now()) @updatedAt
+  updatedBy     String?
+  lines         StandardPackageLine[]
+  boms          BOMHeader[]
+  enquiries     Enquiry[]
 }
 
 model StandardPackageLine {
