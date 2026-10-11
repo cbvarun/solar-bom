@@ -11,6 +11,8 @@ export interface PackageProjectForm {
   customerName: string | null;
   customerEmail: string | null;
   customerPhone: string | null;
+  /** Enquiry this project answers; linked when it has no project yet. */
+  enquiryId?: string | null;
 }
 
 /**
@@ -55,6 +57,10 @@ export async function createProjectFromPackage(db: PrismaClient, packageId: stri
       });
     }
     await audit(tx, actor, { entityType: "Project", entityId: p.id, action: "create", newValue: f.name, reason: `From standard package ${pkg.code}` });
+    if (f.enquiryId) {
+      const linked = await tx.enquiry.updateMany({ where: { id: f.enquiryId, projectId: null }, data: { projectId: p.id } });
+      if (linked.count) await audit(tx, actor, { entityType: "Enquiry", entityId: f.enquiryId, action: "update", field: "projectId", newValue: p.reference, reason: `Project created from standard package ${pkg.code}` });
+    }
     await initComplianceChecklist(tx, p.id, null);
     await createRevision(tx, bom.id, `Created from standard package ${pkg.name}`, actor);
     return p;

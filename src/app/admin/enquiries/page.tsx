@@ -45,7 +45,7 @@ export default async function AdminEnquiries({ searchParams }: { searchParams: P
 
   const [enquiries, counts, dueCount, total, quotes, users] = await Promise.all([
     prisma.enquiry.findMany({
-      where, include: { project: true, notes: { orderBy: { createdAt: "desc" }, take: 1 }, _count: { select: { notes: true } } },
+      where, include: { project: true, package: { select: { name: true } }, notes: { orderBy: { createdAt: "desc" }, take: 1 }, _count: { select: { notes: true } } },
       orderBy: due ? [{ nextFollowUpAt: "asc" }, { createdAt: "desc" }] : { createdAt: "desc" }, take: 200,
     }),
     prisma.enquiry.groupBy({ by: ["status"], where: ownerWhere, _count: true }),
@@ -105,7 +105,7 @@ export default async function AdminEnquiries({ searchParams }: { searchParams: P
                     </p>
                     <p className="break-words text-xs text-ink-muted">
                       <a href={`mailto:${e.email}`}>{e.email}</a>{e.phone && ` · ${e.phone}`}{e.location && ` · ${e.location}`}
-                      {e.customerType && ` · ${CUSTOMER_TYPE_LABEL[e.customerType]}`}{e.capacityKwp && ` · ${Number(e.capacityKwp)} kWp`}{e.productSku && ` · product ${e.productSku}`}
+                      {e.customerType && ` · ${CUSTOMER_TYPE_LABEL[e.customerType]}`}{e.capacityKwp && ` · ${Number(e.capacityKwp)} kWp`}{e.productSku && ` · product ${e.productSku}`}{e.package && ` · package ${e.package.name}`}
                       {" · "}{formatDateTime(e.createdAt)}
                     </p>
                     <p className="mt-2 line-clamp-3 whitespace-pre-wrap break-words">{e.message}</p>

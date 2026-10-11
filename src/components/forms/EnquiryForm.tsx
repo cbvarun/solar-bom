@@ -4,8 +4,9 @@ import clsx from "clsx";
 
 type Errors = Record<string, string>;
 
-export function EnquiryForm({ source = "website", productSku, projectId, compact = false, defaultMessage = "" }: {
-  source?: "website" | "quote-request" | "product-quote"; productSku?: string; projectId?: string; compact?: boolean; defaultMessage?: string;
+export function EnquiryForm({ source = "website", productSku, projectId, packageCode, compact = false, defaultMessage = "", idPrefix = "enq" }: {
+  source?: "website" | "quote-request" | "product-quote" | "package-quote"; productSku?: string; projectId?: string; packageCode?: string;
+  compact?: boolean; defaultMessage?: string; /** Keeps field ids unique when a page shows several forms. */ idPrefix?: string;
 }) {
   const [errors, setErrors] = useState<Errors>({});
   const [done, setDone] = useState<string | null>(null);
@@ -22,7 +23,7 @@ export function EnquiryForm({ source = "website", productSku, projectId, compact
     setErrors(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
-    const res = await fetch("/api/enquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, source, productSku, projectId }) });
+    const res = await fetch("/api/enquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, source, productSku, projectId, packageCode }) });
     setBusy(false);
     const json = await res.json();
     if (!res.ok) setErrors(json.errors ?? { form: "Could not submit. Please try again." });
@@ -40,9 +41,9 @@ export function EnquiryForm({ source = "website", productSku, projectId, compact
 
   const field = (name: string, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
     <div>
-      <label className="label" htmlFor={`enq-${name}`}>{label}{props.required && <span className="text-red-600"> *</span>}</label>
-      <input id={`enq-${name}`} name={name} className={clsx("input mt-1", errors[name] && "input-error")} aria-invalid={!!errors[name]} aria-describedby={errors[name] ? `enq-${name}-err` : undefined} {...props} />
-      {errors[name] && <p id={`enq-${name}-err`} className="mt-1 text-xs text-red-700">{errors[name]}</p>}
+      <label className="label" htmlFor={`${idPrefix}-${name}`}>{label}{props.required && <span className="text-red-600"> *</span>}</label>
+      <input id={`${idPrefix}-${name}`} name={name} className={clsx("input mt-1", errors[name] && "input-error")} aria-invalid={!!errors[name]} aria-describedby={errors[name] ? `${idPrefix}-${name}-err` : undefined} {...props} />
+      {errors[name] && <p id={`${idPrefix}-${name}-err`} className="mt-1 text-xs text-red-700">{errors[name]}</p>}
     </div>
   );
 
@@ -55,8 +56,8 @@ export function EnquiryForm({ source = "website", productSku, projectId, compact
         {!compact && field("company", "Company / society", { autoComplete: "organization" })}
         {!compact && (
           <div>
-            <label className="label" htmlFor="enq-customerType">Customer type</label>
-            <select id="enq-customerType" name="customerType" className="input mt-1" defaultValue="">
+            <label className="label" htmlFor={`${idPrefix}-customerType`}>Customer type</label>
+            <select id={`${idPrefix}-customerType`} name="customerType" className="input mt-1" defaultValue="">
               <option value="">Select…</option>
               <option value="RESIDENTIAL">Residential</option><option value="APARTMENT">Apartment</option>
               <option value="COMMERCIAL">Commercial</option><option value="INDUSTRIAL">Industrial</option>
@@ -64,11 +65,11 @@ export function EnquiryForm({ source = "website", productSku, projectId, compact
           </div>
         )}
         {!compact && field("capacityKwp", "Approximate capacity (kWp)", { inputMode: "decimal" })}
-        {!compact && field("location", "Site location (area, Bengaluru)")}
+        {(!compact || packageCode) && field("location", "Site location (area, Bengaluru)")}
       </div>
       <div>
-        <label className="label" htmlFor="enq-message">Message<span className="text-red-600"> *</span></label>
-        <textarea id="enq-message" name="message" rows={compact ? 3 : 4} defaultValue={defaultMessage} className={clsx("input mt-1", errors.message && "input-error")} aria-invalid={!!errors.message} />
+        <label className="label" htmlFor={`${idPrefix}-message`}>Message<span className="text-red-600"> *</span></label>
+        <textarea id={`${idPrefix}-message`} name="message" rows={compact ? 3 : 4} defaultValue={defaultMessage} className={clsx("input mt-1", errors.message && "input-error")} aria-invalid={!!errors.message} />
         {errors.message && <p className="mt-1 text-xs text-red-700">{errors.message}</p>}
       </div>
       {errors.form && <p role="alert" className="text-sm text-red-700">{errors.form}</p>}

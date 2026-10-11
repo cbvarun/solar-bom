@@ -6,16 +6,17 @@ import { PageHead, Field, Area, Select, Hidden } from "@/components/admin/Fields
 import { ActionForm, Submit } from "@/components/admin/ActionForm";
 import { Badge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
+import { NewFromPackage } from "@/components/packages/NewFromPackage";
 import { addEnquiryNote, updateEnquiry } from "../../actions";
 import { CUSTOMER_TYPE_LABEL, formatDateTime } from "@/lib/format";
 import { ENQUIRY_STATUS_LABEL, ENQUIRY_STATUS_TONE, followUpKey, formatFollowUp, isFollowUpOverdue, isTerminalStatus, statusOptions, type EnquiryStatusCode } from "@/lib/crm";
 
-const FIELD_LABEL: Record<string, string> = { status: "Status", assignedTo: "Owner", nextFollowUpAt: "Next follow-up", lostReason: "Lost reason", notes: "Note" };
+const FIELD_LABEL: Record<string, string> = { status: "Status", assignedTo: "Owner", nextFollowUpAt: "Next follow-up", lostReason: "Lost reason", notes: "Note", projectId: "Project" };
 
 export default async function EnquiryDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { can } = await adminCtx();
-  const e = await prisma.enquiry.findUnique({ where: { id }, include: { project: true, notes: { orderBy: { createdAt: "desc" } } } });
+  const e = await prisma.enquiry.findUnique({ where: { id }, include: { project: true, package: true, notes: { orderBy: { createdAt: "desc" } } } });
   if (!e) notFound();
   const [users, history] = await Promise.all([
     prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, active: true } }),
@@ -57,6 +58,7 @@ export default async function EnquiryDetail({ params }: { params: Promise<{ id: 
             <dt className="text-ink-muted">Location</dt><dd className="break-words">{e.location ?? "—"}</dd>
             <dt className="text-ink-muted">Customer type</dt><dd>{e.customerType ? CUSTOMER_TYPE_LABEL[e.customerType] : "—"}</dd>
             <dt className="text-ink-muted">Capacity</dt><dd>{e.capacityKwp ? `${Number(e.capacityKwp)} kWp` : "—"}</dd>
+            {e.package && <><dt className="text-ink-muted">Package</dt><dd className="break-words"><Link href={`/admin/packages#${e.package.code}`}>{e.package.name}</Link>{!e.package.active && <> <Badge>inactive</Badge></>}</dd></>}
             {e.productSku && <><dt className="text-ink-muted">Product</dt><dd className="break-all font-mono text-xs">{e.productSku}</dd></>}
             <dt className="text-ink-muted">Project</dt>
             <dd className="break-words">{e.project ? <Link href={`/projects/${e.project.id}`}>{e.project.reference} · {e.project.name}</Link> : "—"}</dd>
@@ -67,6 +69,16 @@ export default async function EnquiryDetail({ params }: { params: Promise<{ id: 
           </dl>
           <h3 className="mt-4 text-sm font-semibold">Message</h3>
           <p className="mt-1 whitespace-pre-wrap break-words text-sm">{e.message}</p>
+          {e.package && !e.project && can("packages.use") && e.package.active && (
+            <details className="card mt-4 p-4">
+              <summary className="cursor-pointer text-sm font-medium">Create project from {e.package.name}</summary>
+              <p className="mt-2 text-xs text-ink-muted">Filled in from this enquiry. The new project is linked to the enquiry, and its BOM starts as the package lines marked estimated.</p>
+              <div className="mt-3">
+                <NewFromPackage packageId={e.package.id} packageName={e.package.name} enquiryId={e.id}
+                  defaults={{ name: `${e.name}${e.location ? ` · ${e.location}` : ""} · ${Number(e.package.capacityKwp)} kWp`, location: e.location, customerName: e.name, customerPhone: e.phone, customerEmail: e.email, customerType: e.customerType }} />
+              </div>
+            </details>
+          )}
         </section>
 
         <section className="min-w-0">
