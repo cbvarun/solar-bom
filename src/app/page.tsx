@@ -37,6 +37,7 @@ export default async function Home() {
             <div className="mt-6 flex flex-wrap gap-3">
               <Link href="/configure" className="btn-accent">Build Your Solar BOM</Link>
               <Link href="/catalogue" className="btn-secondary">Explore Components</Link>
+              <Link href="/packages" className="btn-secondary">Standard Packages</Link>
             </div>
             <p className="mt-4 text-xs text-ink-muted">Generated BOMs are preliminary and are verified by our design engineers before procurement.</p>
           </div>

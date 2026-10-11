@@ -622,25 +622,28 @@ model Quotation {
 }
 
 model Enquiry {
-  id             String        @id @default(cuid())
+  id             String           @id @default(cuid())
   name           String
   email          String
   phone          String?
   company        String?
   customerType   CustomerType?
   location       String?
-  capacityKwp    Decimal?      @db.Decimal(10, 2)
+  capacityKwp    Decimal?         @db.Decimal(10, 2)
   message        String
-  source         String        @default("website") // website | quote-request | product-quote
+  source         String           @default("website") // website | quote-request | product-quote
   productSku     String?
   projectId      String?
-  status         EnquiryStatus @default(NEW)
+  /// Standard package the visitor asked about, when the enquiry came from the public packages page.
+  packageId      String?
+  status         EnquiryStatus    @default(NEW)
   assignedTo     String?
   nextFollowUpAt DateTime?
   lostReason     String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @default(now()) @updatedAt
-  project        Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @default(now()) @updatedAt
+  project        Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  package        StandardPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
   notes          EnquiryNote[]
 }
 
@@ -736,6 +739,7 @@ model StandardPackage {
   updatedBy   String?
   lines       StandardPackageLine[]
   boms        BOMHeader[]
+  enquiries   Enquiry[]
 }
 
 model StandardPackageLine {

@@ -70,7 +70,7 @@ export default async function Packages() {
       {!edit && <ReadOnlyNote what="standard packages" />}
       <ul className="space-y-4">
         {packages.map((p) => (
-          <li key={p.id} className="card min-w-0 p-4">
+          <li key={p.id} id={p.code} className="card min-w-0 scroll-mt-20 p-4">
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-medium">{p.name}</p>
               <Badge tone={p.active ? "green" : "gray"}>{p.active ? "active" : "inactive"}</Badge>

@@ -14,6 +14,7 @@ const schema = z.object({
   customerName: opt(120),
   customerEmail: z.preprocess((v) => (v === "" || v == null ? null : String(v).trim()), z.string().email("Enter a valid email").max(200).nullable()),
   customerPhone: z.preprocess((v) => (v === "" || v == null ? null : String(v).trim()), z.string().regex(/^[0-9+\-\s()]{6,20}$/, "Enter a valid phone number").nullable()),
+  enquiryId: opt(64).optional(),
 });
 
 /** Staff start a project whose BOM is a copy of a standard package. */

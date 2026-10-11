@@ -96,7 +96,8 @@ export const enquirySchema = z.object({
   message: z.string().trim().min(5, "Tell us a little about the project").max(4000),
   productSku: optStr(64),
   projectId: optStr(64),
-  source: z.enum(["website", "quote-request", "product-quote"]).default("website"),
+  packageCode: optStr(64),
+  source: z.enum(["website", "quote-request", "product-quote", "package-quote"]).default("website"),
 });
 
 export const bomItemPatchSchema = z.object({

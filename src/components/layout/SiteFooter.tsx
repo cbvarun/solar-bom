@@ -14,6 +14,7 @@ export function SiteFooter() {
           <p className="text-sm font-semibold text-white">Platform</p>
           <ul className="mt-2 space-y-1 text-sm">
             <li><Link className="text-brand-200 no-underline hover:text-white" href="/catalogue">Component catalogue</Link></li>
+            <li><Link className="text-brand-200 no-underline hover:text-white" href="/packages">Standard packages</Link></li>
             <li><Link className="text-brand-200 no-underline hover:text-white" href="/configure">Project configurator</Link></li>
             <li><Link className="text-brand-200 no-underline hover:text-white" href="/projects">Saved projects</Link></li>
             <li><Link className="text-brand-200 no-underline hover:text-white" href="/compliance">Compliance sources</Link></li>
