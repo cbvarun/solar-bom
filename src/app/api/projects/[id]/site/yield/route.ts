@@ -5,16 +5,28 @@ import { getActor, projectAccess } from "@/lib/auth";
 import { combinedLossPct } from "@/lib/engine";
 import { audit } from "@/lib/server/audit";
 import { fetchPvgisYield, YieldServiceError } from "@/lib/server/site";
-import { notFound } from "@/lib/server/api";
+import { handleError, notFound } from "@/lib/server/api";
+import { saveSite } from "@/lib/server/site-save";
+import { siteSchema } from "@/lib/validation";
 
-/** Run the PVGIS yield estimate for the saved site and store it with its source. */
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+/**
+ * Run the PVGIS yield estimate and store it with its source. When the form
+ * is sent along, it is saved first and the estimate uses the row as written,
+ * not a fresh read that a pooled connection may serve from cache.
+ */
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const project = await prisma.project.findUnique({ where: { id } });
   if (!project || (await projectAccess(project)) !== "edit") return notFound();
-  const site = await prisma.siteAssessment.findUnique({ where: { projectId: id } });
+  const raw = await req.text();
+  let site;
+  try {
+    site = raw ? (await saveSite(id, siteSchema.parse(JSON.parse(raw)), await getActor())).site : await prisma.siteAssessment.findUnique({ where: { projectId: id } });
+  } catch (e) {
+    return handleError(e);
+  }
   if (site?.latitude == null || site.longitude == null) return NextResponse.json({ error: "Save the site location on the map first." }, { status: 422 });
-  if (site.systemLossPct == null) return NextResponse.json({ error: "Enter the system losses (%) and save before estimating." }, { status: 422 });
+  if (site.systemLossPct == null) return NextResponse.json({ error: "Enter the system losses (%) before estimating." }, { status: 422 });
   const prev = site.yieldEstimate as { fetchedAt?: string } | null;
   if (prev?.fetchedAt && Date.now() - Date.parse(prev.fetchedAt) < 15_000) return NextResponse.json({ error: "An estimate was just made. Wait a few seconds before trying again." }, { status: 429 });
   try {

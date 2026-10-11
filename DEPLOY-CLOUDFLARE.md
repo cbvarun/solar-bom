@@ -39,6 +39,8 @@ npx wrangler r2 bucket create solar-bom-files
 
 Paste the Hyperdrive `id` printed by the first command into `wrangler.jsonc` in place of `REPLACE_WITH_HYPERDRIVE_ID`.
 
+Turn off Hyperdrive's query caching: `npx wrangler hyperdrive update <id> --caching-disabled`, or in the dashboard under Hyperdrive → solar-bom-db → Settings → Caching. With caching on, a page can show data up to a minute old right after someone saves, because Hyperdrive answers repeated reads from its cache.
+
 ## 3. Secrets and company details
 
 ```bash
