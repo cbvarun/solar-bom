@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import { generateBom, type EngineResult, type ProjectInputs } from "@/lib/engine";
 import type { ProjectForm } from "@/lib/validation";
+import { changesRow } from "@/lib/row-diff";
 import { audit, SYSTEM, type Actor } from "./audit";
 import { loadEngineCatalogue, loadRules } from "./engine-data";
 
@@ -170,20 +171,19 @@ export async function generateAndSaveBom(db: PrismaClient, projectId: string, ac
       const productChanged = prior.productId !== (l.productId ?? null);
       let status = l.quantityStatus;
       if (prior.quantityStatus === "ENGINEER_VERIFIED" && !qtyChanged && !productChanged) status = "ENGINEER_VERIFIED";
-      await tx.bOMItem.update({
-        where: { id: prior.id },
-        data: {
-          section: l.section, lineNo: i + 1, itemCode: l.itemCode, name: l.name, specification: l.specification, unit: l.unit,
-          calculatedQty: calc, procurementQty: overridden && !prior.removed ? prior.procurementQty : calc, quantityStatus: status,
-          quantityBasis: l.quantityBasis, productId: l.productId ?? null, manufacturer: l.manufacturer, model: l.model,
-          complianceReq: l.complianceReq, technicalNotes: l.technicalNotes, removed: prior.removed,
-          ...(productChanged ? { gstRatePercent: prod?.taxClass?.ratePercent ?? null, taxClassCode: prod?.taxClass?.code ?? null, unitPrice: priceEntry?.unitPrice ?? null, priceProvenance: priceEntry?.provenance ?? null, supplierName: priceEntry?.supplier?.name ?? null } : {}),
-          // Fill a still-unpriced line from the catalogue; never overwrite a price someone entered.
-          ...(!productChanged && prior.unitPrice == null && priceEntry ? { unitPrice: priceEntry.unitPrice, priceProvenance: priceEntry.provenance, supplierName: prior.supplierName ?? priceEntry.supplier?.name ?? null } : {}),
-          // Likewise pick up a GST rate configured after the line was created.
-          ...(!productChanged && prior.gstRatePercent == null && prod?.taxClass?.ratePercent != null ? { gstRatePercent: prod.taxClass.ratePercent, taxClassCode: prod.taxClass.code } : {}),
-        },
-      });
+      const data: Prisma.BOMItemUncheckedUpdateInput = {
+        section: l.section, lineNo: i + 1, itemCode: l.itemCode, name: l.name, specification: l.specification, unit: l.unit,
+        calculatedQty: calc, procurementQty: overridden && !prior.removed ? prior.procurementQty : calc, quantityStatus: status,
+        quantityBasis: l.quantityBasis, productId: l.productId ?? null, manufacturer: l.manufacturer, model: l.model,
+        complianceReq: l.complianceReq, technicalNotes: l.technicalNotes, removed: prior.removed,
+        ...(productChanged ? { gstRatePercent: prod?.taxClass?.ratePercent ?? null, taxClassCode: prod?.taxClass?.code ?? null, unitPrice: priceEntry?.unitPrice ?? null, priceProvenance: priceEntry?.provenance ?? null, supplierName: priceEntry?.supplier?.name ?? null } : {}),
+        // Fill a still-unpriced line from the catalogue; never overwrite a price someone entered.
+        ...(!productChanged && prior.unitPrice == null && priceEntry ? { unitPrice: priceEntry.unitPrice, priceProvenance: priceEntry.provenance, supplierName: prior.supplierName ?? priceEntry.supplier?.name ?? null } : {}),
+        // Likewise pick up a GST rate configured after the line was created.
+        ...(!productChanged && prior.gstRatePercent == null && prod?.taxClass?.ratePercent != null ? { gstRatePercent: prod.taxClass.ratePercent, taxClassCode: prod.taxClass.code } : {}),
+      };
+      // Most lines are unchanged on a regeneration; skipping their writes keeps the request within the host's CPU budget.
+      if (changesRow(prior, data)) await tx.bOMItem.update({ where: { id: prior.id }, data });
       if (qtyChanged) await audit(tx, actor, { entityType: "BOMItem", entityId: prior.id, action: "recalculate", field: "calculatedQty", oldValue: oldCalc, newValue: l.calculatedQty, reason: summary });
       if (productChanged) await audit(tx, actor, { entityType: "BOMItem", entityId: prior.id, action: "recalculate", field: "productId", oldValue: prior.productId, newValue: l.productId, reason: summary });
       if (prior.quantityStatus === "ENGINEER_VERIFIED" && status !== "ENGINEER_VERIFIED") {

@@ -27,7 +27,8 @@ export async function loadBom(db: Db, projectId: string) {
     include: {
       items: { orderBy: [{ lineNo: "asc" }, { updatedAt: "asc" }], include: { product: { include: { category: true } } } },
       costItems: true,
-      revisions: { orderBy: { revisionNo: "desc" } },
+      // Each revision stores a full BOM snapshot; pages only list revisions, so leave it out.
+      revisions: { orderBy: { revisionNo: "desc" }, omit: { snapshot: true } },
       assignedTo: true,
     },
   });
@@ -35,7 +36,26 @@ export async function loadBom(db: Db, projectId: string) {
 }
 export type LoadedBom = NonNullable<Awaited<ReturnType<typeof loadBom>>>;
 
-export function bomPricing(bom: LoadedBom): PricingResult {
+type PriceableBom = {
+  pricesIncludeGst: boolean;
+  items: { id: string; section: string; removed: boolean; procurementQty: Prisma.Decimal | null; unitPrice: Prisma.Decimal | null; gstRatePercent: Prisma.Decimal | null }[];
+  costItems: { label: string; amount: Prisma.Decimal | null; gstRatePercent: Prisma.Decimal | null }[];
+};
+
+/** Only what pricing and the energy summary need, without products or revision snapshots. */
+export function loadBomForPricing(db: Db, projectId: string) {
+  return db.bOMHeader.findFirst({
+    where: { projectId },
+    orderBy: { createdAt: "asc" },
+    select: {
+      calcSnapshot: true, sourcePackageId: true, pricesIncludeGst: true,
+      items: { select: { id: true, section: true, removed: true, procurementQty: true, unitPrice: true, gstRatePercent: true } },
+      costItems: { select: { label: true, amount: true, gstRatePercent: true } },
+    },
+  });
+}
+
+export function bomPricing(bom: PriceableBom): PricingResult {
   const active = bom.items.filter((i) => !i.removed);
   return priceBom(
     active.map((i) => ({ id: i.id, section: i.section, quantity: num(i.procurementQty), unitPrice: num(i.unitPrice), gstRatePercent: num(i.gstRatePercent) })),

@@ -9,7 +9,7 @@ export default async function HistoryPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   await loadProjectOr404(id);
   const session = await getSession();
-  const bom = await prisma.bOMHeader.findFirst({ where: { projectId: id }, include: { revisions: { orderBy: { revisionNo: "desc" } }, items: { select: { id: true, name: true } } } });
+  const bom = await prisma.bOMHeader.findFirst({ where: { projectId: id }, include: { revisions: { orderBy: { revisionNo: "desc" }, omit: { snapshot: true } }, items: { select: { id: true, name: true } } } });
   const itemIds = bom?.items.map((i) => i.id) ?? [];
   const itemNames = new Map(bom?.items.map((i) => [i.id, i.name]));
   const logs = await prisma.auditLog.findMany({

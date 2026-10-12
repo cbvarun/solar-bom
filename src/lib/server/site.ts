@@ -1,9 +1,10 @@
 import "server-only";
+import { cache } from "react";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { computeSavings, computeSubsidy, scaleGeneration, compassToPvgisAspect, type YieldEstimate } from "@/lib/engine";
 import type { EnergySummary } from "@/lib/energy-summary";
-import { loadRules } from "./engine-data";
-import { bomPricing, engineSnapshot, loadBom } from "./bom";
+import { defaultRules } from "@/lib/engine";
+import { bomPricing, engineSnapshot, loadBomForPricing } from "./bom";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 const num = (v: Prisma.Decimal | null | undefined) => (v == null ? null : Number(v));
@@ -63,8 +64,18 @@ interface PvgisResponse {
   };
 }
 
-export function loadSite(db: Db, projectId: string) {
-  return db.siteAssessment.findUnique({ where: { projectId } });
+/** Cached per request while rendering, so the site page and its energy summary share one read. */
+export const loadSite = cache((db: Db, projectId: string) => db.siteAssessment.findUnique({ where: { projectId } }));
+
+const SAVINGS_RULES = ["savings_degradation_pct_per_yr", "savings_tariff_escalation_pct_per_yr", "savings_analysis_years"] as const;
+
+/** Just the savings assumptions, rather than every engine and compatibility rule. */
+async function loadSavingsRules(db: Db) {
+  const rules = defaultRules();
+  for (const r of await db.engineRule.findMany({ where: { key: { in: [...SAVINGS_RULES] } }, select: { key: true, valueNumber: true } })) {
+    rules[r.key] = r.valueNumber == null ? null : Number(r.valueNumber);
+  }
+  return rules;
 }
 
 /** Generation, subsidy and savings for a project from its site data, BOM and configured rules. */
@@ -72,8 +83,8 @@ export async function energySummary(db: Db, projectId: string): Promise<EnergySu
   const [project, site, bom, rules] = await Promise.all([
     db.project.findUniqueOrThrow({ where: { id: projectId }, select: { customerType: true } }),
     loadSite(db, projectId),
-    loadBom(db, projectId),
-    loadRules(db),
+    loadBomForPricing(db, projectId),
+    loadSavingsRules(db),
   ]);
   const calc = bom ? engineSnapshot(bom) : null;
   const pricing = bom ? bomPricing(bom) : null;
