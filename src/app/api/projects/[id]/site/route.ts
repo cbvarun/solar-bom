@@ -12,7 +12,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (!project || (await projectAccess(project)) !== "edit") return notFound();
   try {
     const r = await saveSite(id, siteSchema.parse(await req.json()), await getActor());
-    return NextResponse.json({ ok: true, roofOutlineAreaM2: r.area, yieldCleared: r.yieldCleared, regenerated: r.regenerated });
+    return NextResponse.json({ ok: true, roofOutlineAreaM2: r.area, yieldCleared: r.yieldCleared, regenerated: r.regenerated, regenerateError: r.regenerateError });
   } catch (e) {
     return handleError(e);
   }

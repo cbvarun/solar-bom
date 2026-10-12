@@ -22,6 +22,20 @@ export interface SiteValues {
 
 const s = (v: number | string | null) => (v == null ? "" : String(v));
 
+const FIELD_LABEL: Record<string, string> = {
+  latitude: "Site location", longitude: "Site location", roofOutline: "Roof outline", tiltDeg: "Array tilt", azimuthDeg: "Array direction",
+  systemLossPct: "System losses", shadingLossPct: "Shading loss", tariffInrPerKwh: "Electricity tariff", tariffSource: "Tariff source",
+  subsidySchemeId: "Subsidy scheme", applyRoofArea: "Roof area option",
+};
+
+/** A failure message that always says what went wrong, naming each rejected field. */
+function failureText(status: number, j: { error?: string; errors?: Record<string, string> }, action: string) {
+  if (j.error) return j.error;
+  const errs = Object.entries(j.errors ?? {});
+  if (errs.length) return `Please correct: ${errs.map(([k, m]) => `${FIELD_LABEL[k] ?? k} (${m})`).join("; ")}.`;
+  return `${action} failed: the server returned an error (HTTP ${status}). Reload the page to see what was kept, then try again.`;
+}
+
 export function SiteEditor({ projectId, initial, schemes, readOnly, hasEstimate }: {
   projectId: string;
   initial: SiteValues;
@@ -59,12 +73,14 @@ export function SiteEditor({ projectId, initial, schemes, readOnly, hasEstimate 
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (j.errors) setErrors(j.errors);
-        setMsg({ tone: "error", text: j.error ?? "Please correct the highlighted fields." });
+        setMsg({ tone: "error", text: failureText(res.status, j, "Save") });
         return false;
       }
       setDirty(false);
       setApplyRoofArea(false);
-      setMsg({ tone: "ok", text: `Saved.${j.regenerated ? " Roof area applied and BOM regenerated." : ""}${j.yieldCleared ? " Location or losses changed, so run the yield estimate again." : ""}` });
+      setMsg(j.regenerateError
+        ? { tone: "error", text: `Saved, and the roof area was applied, but the BOM could not be regenerated: ${j.regenerateError} Open the BOM tab to regenerate it.` }
+        : { tone: "ok", text: `Saved.${j.regenerated ? " Roof area applied and BOM regenerated." : ""}${j.yieldCleared ? " Location or losses changed, so run the yield estimate again." : ""}` });
       router.refresh();
       return true;
     } catch {
@@ -83,7 +99,7 @@ export function SiteEditor({ projectId, initial, schemes, readOnly, hasEstimate 
     try {
       const res = await fetch(`/api/projects/${projectId}/site/yield`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(formBody()) });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) { if (j.errors) setErrors(j.errors); setMsg({ tone: "error", text: j.error ?? (j.errors ? "Please correct the highlighted fields." : `Estimate failed (${res.status}).`) }); }
+      if (!res.ok) { if (j.errors) setErrors(j.errors); setMsg({ tone: "error", text: failureText(res.status, j, "Estimate") }); }
       else { setDirty(false); setApplyRoofArea(false); setMsg({ tone: "ok", text: `Estimated ${j.specificYieldKwhPerKwpYr} kWh per kWp per year (${j.source}).` }); router.refresh(); }
     } catch {
       setMsg({ tone: "error", text: "Could not reach the server." });
@@ -109,7 +125,8 @@ export function SiteEditor({ projectId, initial, schemes, readOnly, hasEstimate 
         <div className="mt-3">
           <SiteMap pin={pin} outline={outline} readOnly={readOnly} onPin={(p) => { setPin(p); setDirty(true); }} onOutline={(o) => { setOutline(o); setDirty(true); }} />
         </div>
-        <p className="mt-1 text-xs text-ink-muted">{pin ? `Site: ${pin[0].toFixed(5)}, ${pin[1].toFixed(5)}` : "Site not marked yet."} {errors.latitude && <span className="text-red-700">{errors.latitude}</span>}</p>
+        <p className="mt-1 text-xs text-ink-muted">{pin ? `Site: ${pin[0].toFixed(5)}, ${pin[1].toFixed(5)}` : "Site not marked yet. Choose Mark site and click the building."} {(errors.latitude || errors.longitude) && <span className="text-red-700">{errors.latitude ?? errors.longitude}</span>}
+          {errors.roofOutline && <span className="block text-red-700">{errors.roofOutline}</span>}</p>
         {!readOnly && outline.length >= 3 && (
           <label className="mt-2 flex items-start gap-2 text-sm">
             <input type="checkbox" className="mt-0.5 h-4 w-4 accent-brand-700" checked={applyRoofArea} onChange={(e) => { setApplyRoofArea(e.target.checked); setDirty(true); }} />
@@ -132,6 +149,7 @@ export function SiteEditor({ projectId, initial, schemes, readOnly, hasEstimate 
           <div>
             <label htmlFor="site-tariffSource" className="label">Tariff source</label>
             <input id="site-tariffSource" className="input mt-1" value={f.tariffSource} disabled={readOnly} placeholder="e.g. BESCOM bill, Aug 2026" onChange={(e) => set("tariffSource", e.target.value)} />
+            {errors.tariffSource && <p className="mt-1 text-xs text-red-700">{errors.tariffSource}</p>}
           </div>
           <div className="sm:col-span-2">
             <label htmlFor="site-subsidy" className="label">Subsidy scheme</label>
@@ -139,6 +157,7 @@ export function SiteEditor({ projectId, initial, schemes, readOnly, hasEstimate 
               <option value="">None</option>
               {schemes.map((x) => <option key={x.id} value={x.id}>{x.name}{x.verified ? "" : " (amounts pending verification)"}</option>)}
             </select>
+            {errors.subsidySchemeId && <p className="mt-1 text-xs text-red-700">{errors.subsidySchemeId}</p>}
             <p className="hint">{schemes.length ? "Only schemes activated by your team appear here." : "No subsidy scheme is active. Staff can set one up under Admin → Subsidies."}</p>
           </div>
         </div>
@@ -149,6 +168,7 @@ export function SiteEditor({ projectId, initial, schemes, readOnly, hasEstimate 
             <button type="button" className="btn-primary" disabled={busy !== null || !pin} onClick={estimate}>{busy === "yield" ? "Estimating…" : hasEstimate ? "Re-run yield estimate" : "Estimate yield (PVGIS)"}</button>
           </div>
         )}
+        {!readOnly && !pin && <p className="mt-2 text-xs text-solar-700">To estimate yield, click <strong>Mark site</strong> above the map, then click the building.</p>}
         <p className="mt-3 text-xs text-ink-muted">The yield estimate uses PVGIS, a free service of the European Commission&apos;s Joint Research Centre. It sends only the coordinates, angles and losses.</p>
       </section>
     </div>
