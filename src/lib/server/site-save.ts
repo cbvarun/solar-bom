@@ -35,11 +35,18 @@ export async function saveSite(id: string, f: SiteForm, actor: Actor) {
     await audit(prisma, actor, { entityType: "SiteAssessment", entityId: site.id, action: before ? "update" : "create",
       newValue: { lat: f.latitude, lon: f.longitude, roofAreaM2: area, tilt: f.tiltDeg, azimuth: f.azimuthDeg, loss: f.systemLossPct, shading: f.shadingLossPct, tariff: f.tariffInrPerKwh, subsidy: f.subsidySchemeId } });
     let regenerated = false;
+    let regenerateError: string | null = null;
     if (f.applyRoofArea && area) {
       await prisma.projectDesignInputs.upsert({ where: { projectId: id }, update: { roofAreaM2: dec(area) }, create: { projectId: id, roofAreaM2: dec(area) } });
       await audit(prisma, actor, { entityType: "ProjectDesignInputs", entityId: id, action: "update", field: "roofAreaM2", newValue: area, reason: "Measured from roof outline on map (approximate)" });
-      await generateAndSaveBom(prisma, id, actor, "Roof area updated from map outline");
-      regenerated = true;
+      // The site and roof area are already saved; a failed regeneration is reported, not turned into a failed save.
+      try {
+        await generateAndSaveBom(prisma, id, actor, "Roof area updated from map outline");
+        regenerated = true;
+      } catch (e) {
+        if (!(e instanceof BomError)) console.error(e);
+        regenerateError = e instanceof BomError ? e.message : "The BOM could not be regenerated.";
+      }
     }
-    return { site, area, yieldCleared: yieldInputsChanged && !!before?.yieldEstimate, regenerated };
+    return { site, area, yieldCleared: yieldInputsChanged && !!before?.yieldEstimate, regenerated, regenerateError };
 }
