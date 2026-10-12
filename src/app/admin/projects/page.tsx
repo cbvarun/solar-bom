@@ -15,7 +15,7 @@ export default async function AdminProjects({ searchParams }: { searchParams: Pr
   const [boms, users] = await Promise.all([
     prisma.bOMHeader.findMany({
       where: status ? { status: status as never } : undefined,
-      include: { project: true, assignedTo: true, _count: { select: { items: true } }, revisions: { orderBy: { revisionNo: "desc" }, take: 1 } },
+      include: { project: true, assignedTo: true, _count: { select: { items: true } }, revisions: { orderBy: { revisionNo: "desc" }, take: 1, omit: { snapshot: true } } },
       orderBy: { updatedAt: "desc" }, take: 200,
     }),
     prisma.user.findMany({ where: { active: true, roles: { some: {} } }, orderBy: { name: "asc" } }),

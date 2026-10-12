@@ -1,8 +1,8 @@
 import "server-only";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { loadEngineCatalogue, loadRules } from "./engine-data";
 import type { ConfiguratorOptions, EngValues, FormValues, MetaValues } from "@/components/configurator/ConfigureForm";
-import type { ProjectWithInputs } from "./projects";
 
 export async function configuratorOptions(): Promise<ConfiguratorOptions> {
   const { catalogue } = await loadEngineCatalogue(prisma);
@@ -22,7 +22,7 @@ export async function configuratorOptions(): Promise<ConfiguratorOptions> {
   };
 }
 
-export function formInitial(p: ProjectWithInputs): { values: FormValues; eng: EngValues; meta: MetaValues; yieldSource: string } {
+export function formInitial(p: Prisma.ProjectGetPayload<{ include: { designInputs: true } }>): { values: FormValues; eng: EngValues; meta: MetaValues; yieldSource: string } {
   const d = p.designInputs;
   const s = (x: unknown) => (x == null ? "" : String(x));
   const eng = (d?.engineering ?? {}) as Record<string, unknown>;
